@@ -313,7 +313,7 @@ footer{text-align:center; color:var(--dim); font-size:12px; margin-top:34px}
   <section class="card">
     <h2><span class="num">1</span> 점검 스크립트 받기 <span class="tier t1">초급</span></h2>
     <p class="hint">버튼을 누르면 스크립트가 복사됩니다. 메모장에 붙여넣고 저장하세요.
-    <b>이 스크립트는 읽기만 하고 아무것도 바꾸지 않습니다.</b></p>
+    <b>이 스크립트는 읽기만 하고 아무것도 바꾸지 않습니다.</b> 끝나면 결과를 들고 이 페이지를 다시 열어 주므로, 붙여넣지 않으셔도 됩니다.</p>
     <div class="row">
       <button class="primary" id="copyScript">스크립트 복사</button>
       <button id="showScript">내용 보기</button>
@@ -477,7 +477,7 @@ footer{text-align:center; color:var(--dim); font-size:12px; margin-top:34px}
   <section class="card">
     <h2 style="padding-left:0">여러 PC 결과 모아보기</h2>
     <p class="hint">선생님들이 <b>결과 파일로 내보내기</b>로 보낸 파일을 한꺼번에 불러오면 비교표가 만들어집니다.
-    파일 이름이 선생님 이름이 되니 <code>본인이름.json</code> 처럼 받으시면 편합니다.</p>
+    파일 이름이 선생님 이름이 되니 <code>김광배.json</code> 처럼 받으시면 편합니다.</p>
     <div class="drop" id="drop">
       파일을 여기에 끌어다 놓거나 클릭해서 선택하세요<br>
       <span style="font-size:12.5px">여러 개를 한 번에 선택할 수 있습니다</span>
@@ -552,6 +552,14 @@ footer{text-align:center; color:var(--dim); font-size:12px; margin-top:34px}
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
+
+/* ═══════════════════════════════════════════════════════════
+   이 페이지의 주소. 어디에 올리든 스스로 알아낸다.
+   안내문의 링크와 점검 스크립트가 돌아올 주소를 이걸로 채운다.
+   파일을 직접 연 경우(file://)에는 돌아올 주소가 없다.
+   ═══════════════════════════════════════════════════════════ */
+const APP_URL = location.protocol.startsWith("http")
+  ? location.origin + location.pathname : "";
 const esc = s => String(s).replace(/[&<>"']/g, c =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 
@@ -650,14 +658,39 @@ $result = [pscustomobject]@{
     startupOff = @($states | Where-Object { $_ -eq "off" }).Count
 }
 
-Set-Clipboard -Value ($result | ConvertTo-Json -Depth 4 -Compress)
+$json = $result | ConvertTo-Json -Depth 4 -Compress
+Set-Clipboard -Value $json
 
 Write-Host ""
 Write-Host "  점검이 끝났습니다." -ForegroundColor Green
-Write-Host "  결과가 클립보드에 복사되었습니다. 웹앱에 Ctrl+V 로 붙여넣으세요."
+
+# 웹앱 주소를 알면 결과를 들고 브라우저를 직접 엽니다.
+# 주소 뒤 #d= 뒤의 값은 서버로 전송되지 않고 브라우저 안에만 머뭅니다.
+if ($AppUrl) {
+    $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json))
+    $b64 = $b64.Replace('+','-').Replace('/','_').TrimEnd('=')
+    if ($b64.Length -lt 7000) {
+        Start-Process ($AppUrl + '#d=' + $b64)
+        Write-Host "  브라우저가 열리면 결과가 바로 나옵니다. 붙여넣지 않으셔도 됩니다." -ForegroundColor Cyan
+    } else {
+        Start-Process $AppUrl
+        Write-Host "  결과가 길어 자동 전달이 안 됩니다. 웹앱에 Ctrl+V 로 붙여넣으세요." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "  결과가 클립보드에 복사되었습니다. 웹앱에 Ctrl+V 로 붙여넣으세요."
+}
+
 Write-Host ""
 Read-Host "  엔터를 누르면 닫힙니다"
 `;
+
+/* 복사되는 스크립트에 이 페이지 주소를 심어 준다.
+   선생님이 주소를 손으로 적어 넣을 일이 없다. */
+function scriptText(){
+  return `# 결과를 받을 웹앱 주소 (이 페이지가 자동으로 채웠습니다)\n`
+       + `$AppUrl = ${APP_URL ? `"${APP_URL}"` : `""   # 파일을 직접 열어 주소가 없습니다`}\n\n`
+       + SCRIPT;
+}
 
 /* ═══════════════════════════════════════════════════════════
    조치 절차 — 진단이 가리킨 문제를 실제로 없애는 방법
@@ -1149,14 +1182,25 @@ $("copyClean").onclick = async () => {
   setTimeout(() => $("cleanMsg").textContent = "", 3500);
 };
 
-$("scriptText").value = SCRIPT;
+$("scriptText").value = scriptText();
 $("copyScript").onclick = async () => {
-  try{ await navigator.clipboard.writeText(SCRIPT); }
+  try{ await navigator.clipboard.writeText(scriptText()); }
   catch(e){ $("scriptBox").classList.remove("hidden"); $("scriptText").select(); }
   $("copyMsg").textContent = "복사했습니다";
   setTimeout(() => $("copyMsg").textContent = "", 2500);
 };
 $("showScript").onclick = () => $("scriptBox").classList.toggle("hidden");
+
+/* 결과 하나를 받아 화면에 그리고 기록에 남긴다.
+   붙여넣기로 들어오든 주소에 실려 오든 여기로 모인다. */
+function accept(d){
+  render(d);
+  const worst = (d.disks||[{freePct:100}]).reduce((a,b) => b.freePct < a.freePct ? b : a);
+  const h = store.get(K_HIST, []);
+  h.push({ date:d.date, memUsedPct:d.memUsedPct, diskFreePct:worst.freePct,
+           topName:(d.top||[{name:"-"}])[0].name, topPerMin:(d.top||[{cpuPerMin:0}])[0].cpuPerMin, raw:d });
+  store.set(K_HIST, h.slice(-24)); renderHistory();
+}
 
 $("analyze").onclick = () => {
   $("err").textContent = "";
@@ -1165,13 +1209,31 @@ $("analyze").onclick = () => {
   let d; try{ d = JSON.parse(raw); }
   catch(e){ $("err").textContent = "형식이 맞지 않습니다. 스크립트를 다시 실행해 주세요."; return; }
   if (typeof d.memUsedPct !== "number"){ $("err").textContent = "점검 결과가 아닙니다."; return; }
-  render(d);
-  const worst = (d.disks||[{freePct:100}]).reduce((a,b) => b.freePct < a.freePct ? b : a);
-  const h = store.get(K_HIST, []);
-  h.push({ date:d.date, memUsedPct:d.memUsedPct, diskFreePct:worst.freePct,
-           topName:(d.top||[{name:"-"}])[0].name, topPerMin:(d.top||[{cpuPerMin:0}])[0].cpuPerMin, raw:d });
-  store.set(K_HIST, h.slice(-24)); renderHistory();
+  accept(d);
 };
+
+/* 붙여넣는 순간 바로 분석한다. 버튼을 한 번 더 누를 이유가 없다. */
+$("input").addEventListener("paste", () => setTimeout(() => $("analyze").click(), 40));
+
+/* 스크립트가 결과를 주소 뒤에 실어 보냈으면 그대로 읽는다.
+   #뒤의 값은 서버로 전송되지 않으므로 측정값이 PC 밖으로 나가지 않는다. */
+(function fromAddress(){
+  const m = /[#&]d=([A-Za-z0-9\-_]+)/.exec(location.hash);
+  if (!m) return;
+  let d = null;
+  try{
+    let b = m[1].replace(/-/g,"+").replace(/_/g,"/");
+    while (b.length % 4) b += "=";
+    d = JSON.parse(new TextDecoder().decode(
+          Uint8Array.from(atob(b), c => c.charCodeAt(0))));
+  }catch(e){ /* 주소가 잘렸거나 형식이 다르다 */ }
+
+  /* 새로고침해도 같은 결과가 다시 쌓이지 않게 주소를 정리한다 */
+  history.replaceState(null, "", location.pathname + location.search);
+
+  if (d && typeof d.memUsedPct === "number") accept(d);
+  else $("err").textContent = "주소로 전달된 결과를 읽지 못했습니다. 아래에 붙여넣어 주세요.";
+})();
 
 const SAMPLE = {
   date:"2026-11-12 19:50", uptimeMin:180, memUsedPct:44, memFreeGB:17.7, memTotalGB:31.7, procCount:400,
@@ -1437,8 +1499,8 @@ const NOTICE =
      바탕화면에 PC점검.ps1 로 저장합니다
      (파일 형식: 모든 파일 / 인코딩: UTF-8(BOM))
   3. 저장한 파일을 우클릭 → PowerShell로 실행
-  4. 끝나면 결과가 자동 복사됩니다
-  5. 다시 웹페이지로 가서 Ctrl+V 로 붙여넣고 '분석하기'
+  4. 끝나면 브라우저가 저절로 열리며 결과가 바로 나옵니다
+     (열리지 않으면 이 주소로 가서 Ctrl+V 만 누르세요)
 
 ■ 결과는 신호등으로 나옵니다
   초록 = 정상 / 노랑 = 지켜볼 것 / 빨강 = 조치 필요
@@ -1471,9 +1533,10 @@ const NOTICE =
 웹페이지의 '결과 파일로 내보내기' 를 누르신 뒤
 파일명을 성함으로 바꿔 보내주시면 감사하겠습니다.`;
 
-$("noticeText").textContent = NOTICE;
+const noticeFilled = () => APP_URL ? NOTICE.replace("[여기에 링크]", APP_URL) : NOTICE;
+$("noticeText").textContent = noticeFilled();
 $("copyNotice").onclick = async () => {
-  try{ await navigator.clipboard.writeText(NOTICE); $("noticeMsg").textContent = "복사했습니다"; }
+  try{ await navigator.clipboard.writeText(noticeFilled()); $("noticeMsg").textContent = "복사했습니다"; }
   catch(e){
     const r = document.createRange(); r.selectNode($("noticeText"));
     getSelection().removeAllRanges(); getSelection().addRange(r);
