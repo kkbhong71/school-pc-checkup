@@ -1,0 +1,10 @@
+# 점검 결과 내보내기 파일 (개인정보가 담길 수 있으므로 올리지 않습니다)
+PC점검_*.json
+*.ps1
+
+# OS·편집기
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
