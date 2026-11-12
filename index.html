@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>학교 PC 자가점검</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* ══════════════════════════════════════════════════════════════
+   계기판 판독지 — 측정값이 주인공, 나머지는 조용히
+   · 상자를 반복하지 않는다. 선과 여백으로 나눈다
+   · 색은 신호에만 쓴다. 장식에는 쓰지 않는다
+   · 숫자는 등폭으로, 단위는 작게
+   ══════════════════════════════════════════════════════════════ */
+:root{
+  --paper:#eceef1;  --sheet:#fff;   --ink:#141922;   --dim:#6a7280;
+  --rule:#dfe3e8;   --rule-soft:#eceef1;
+  --mark:#174e6b;   --mark-soft:#e8eff3;
+  --ok:#1c7c54;     --ok-soft:#e3f1ea;
+  --warn:#9a6207;   --warn-soft:#faf0dc;
+  --bad:#a82620;    --bad-soft:#fae9e7;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#0e1116; --sheet:#161a21; --ink:#e6e9ee; --dim:#8b94a1;
+    --rule:#262c36;  --rule-soft:#1d222a;
+    --mark:#6fb6d8;  --mark-soft:#1a2730;
+    --ok:#4cbb8a;    --ok-soft:#142a21;
+    --warn:#d4a142;  --warn-soft:#2b2317;
+    --bad:#e4766d;   --bad-soft:#2d1917;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--sheet); color:var(--ink);
+  font-family:"IBM Plex Sans KR","Pretendard Variable",Pretendard,
+              "Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  font-size:15px; line-height:1.72; letter-spacing:-.003em;
+  font-feature-settings:"tnum" 0;
+}
+.wrap{max-width:820px; margin:0 auto; padding:0 20px 90px}
+
+/* ── 머리 ── */
+header{padding:38px 0 22px}
+h1{
+  font-size:27px; font-weight:800; letter-spacing:-.035em;
+  margin:0 0 7px; line-height:1.25;
+}
+.sub{color:var(--dim); font-size:14px; margin:0; max-width:56ch}
+
+/* ── 탭: 밑줄 하나로 ── */
+.tabs{
+  display:flex; gap:2px; overflow-x:auto; scrollbar-width:none;
+  position:sticky; top:0; z-index:20; background:var(--sheet);
+  border-bottom:1px solid var(--rule); margin-bottom:8px;
+}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{
+  border:0; background:none; font-family:inherit; border-radius:0;
+  padding:13px 14px; font-size:14.5px; font-weight:600; color:var(--dim);
+  cursor:pointer; white-space:nowrap; position:relative; transition:color .15s;
+}
+.tabs button:hover{color:var(--ink); background:none}
+.tabs button.on{color:var(--ink)}
+.tabs button.on::after{
+  content:""; position:absolute; left:14px; right:14px; bottom:-1px;
+  height:2px; background:var(--ink);
+}
+
+/* ── 지면: 상자 반복 대신 한 장의 종이 ── */
+.card{padding:34px 0 6px; border-top:1px solid var(--rule); scroll-margin-top:58px}
+.card:first-of-type{border-top:0; padding-top:26px}
+.card h2{
+  font-size:17px; font-weight:700; letter-spacing:-.022em;
+  margin:0 0 5px; display:flex; align-items:center; gap:10px;
+}
+.card .hint{color:var(--dim); font-size:13.5px; margin:0 0 20px; max-width:62ch}
+.card h2:has(.num) + .hint{padding-left:31px}
+.num{
+  width:21px; height:21px; flex:none; border-radius:50%;
+  border:1.5px solid var(--ink); color:var(--ink); background:none;
+  font-size:11.5px; font-weight:700; display:grid; place-items:center;
+}
+
+/* ── 조작부 ── */
+button{
+  font-family:inherit; font-size:13.5px; font-weight:500; border-radius:7px;
+  border:1px solid var(--rule); background:var(--sheet); color:var(--ink);
+  padding:8px 14px; cursor:pointer; transition:border-color .14s, background .14s;
+}
+button:hover{border-color:var(--ink)}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
+summary:focus-visible{outline:2px solid var(--mark); outline-offset:2px}
+.primary{background:var(--ink); color:var(--sheet); border-color:var(--ink); font-weight:600}
+.primary:hover{opacity:.86}
+.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+
+textarea,input[type=text],input:not([type]){
+  width:100%; padding:12px 14px; border:1px solid var(--rule); border-radius:8px;
+  background:var(--paper); color:var(--ink); font-size:13px;
+  font-family:ui-monospace,"SF Mono",Consolas,monospace;
+}
+textarea{min-height:104px; resize:vertical}
+textarea:focus,input:focus{outline:none; border-color:var(--mark)}
+
+/* ══ 판독 블록 — 이 페이지에서 가장 큰 목소리 ══ */
+.grid{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(166px,1fr));
+  gap:1px; background:var(--rule); border:1px solid var(--rule);
+  border-radius:var(--r); overflow:hidden; margin-top:20px;
+}
+.read{padding:19px 20px 17px; background:var(--sheet)}
+.read .k{font-size:12.5px; color:var(--dim); margin-bottom:6px}
+.read .v{
+  font-size:38px; font-weight:800; line-height:1; letter-spacing:-.045em;
+  font-variant-numeric:tabular-nums;
+}
+.read .v u{font-size:17px; font-weight:600; text-decoration:none; margin-left:2px; letter-spacing:-.01em}
+.read .n{font-size:12.5px; color:var(--dim); margin-top:9px}
+.read.ok .v{color:var(--ok)} .read.warn .v{color:var(--warn)} .read.bad .v{color:var(--bad)}
+
+/* 눈금: 값이 임계선에서 얼마나 떨어져 있는지 */
+.gauge{position:relative; height:3px; background:var(--rule); border-radius:2px; margin-top:12px}
+.gauge i{position:absolute; top:-2.5px; width:3px; height:8px; border-radius:1px; background:var(--ink); transform:translateX(-50%)}
+.gauge b{position:absolute; top:0; left:0; height:3px; border-radius:2px; opacity:.5}
+.read.ok .gauge b{background:var(--ok)} .read.warn .gauge b{background:var(--warn)} .read.bad .gauge b{background:var(--bad)}
+.gauge s{position:absolute; top:-1.5px; width:1px; height:6px; background:var(--dim); opacity:.55}
+
+/* ── 판정 한 줄 ── */
+.verdict{
+  display:flex; gap:9px; align-items:baseline; flex-wrap:wrap;
+  padding:11px 15px; border-radius:7px; margin:16px 0 0;
+  font-size:14px; font-weight:700; letter-spacing:-.015em;
+}
+.verdict span{font-weight:400; font-size:13px; opacity:.82}
+.verdict.ok{background:var(--ok-soft); color:var(--ok)}
+.verdict.warn{background:var(--warn-soft); color:var(--warn)}
+.verdict.bad{background:var(--bad-soft); color:var(--bad)}
+
+/* ── 할 일 ── */
+.todo{list-style:none; padding:0; margin:20px 0 0}
+.todo li{padding:15px 0; border-top:1px solid var(--rule-soft)}
+.todo li b{display:block; font-size:14.5px; font-weight:700; letter-spacing:-.015em}
+.todo li em{font-style:normal; color:var(--dim); font-size:13.5px; display:block; margin-top:2px}
+
+/* ── 난이도 ── */
+.tier{
+  display:inline-block; padding:1px 7px; border-radius:4px;
+  font-size:11px; font-weight:700; letter-spacing:.01em; vertical-align:2px;
+}
+.tier.t1{background:var(--ok-soft); color:var(--ok)}
+.tier.t2{background:var(--mark-soft); color:var(--mark)}
+.tier.t3{background:var(--warn-soft); color:var(--warn)}
+.tierhead{display:flex; gap:11px; align-items:flex-start; margin:30px 0 2px}
+.tierhead:first-child{margin-top:6px}
+.tierhead .tx b{display:block; font-size:15px; font-weight:700; letter-spacing:-.018em}
+.tierhead .tx span{font-size:13px; color:var(--dim)}
+.filt{margin-bottom:4px}
+.filt button.on{background:var(--ink); color:var(--sheet); border-color:var(--ink); font-weight:600}
+
+/* Win+R 바로가기 한 줄 */
+.sc{padding:15px 0; border-top:1px solid var(--rule-soft)}
+.sc:first-child{border-top:0}
+.sc-t b{font-size:14px; font-weight:600}
+.sc-d{font-size:12.5px; color:var(--dim); margin-top:1px}
+
+/* 조치: 상자가 아니라 여백 주석처럼 */
+.fix{padding:20px 0 4px; border-top:1px solid var(--rule-soft)}
+.fix > h3{margin:0 0 2px; font-size:15.5px; font-weight:700; letter-spacing:-.02em}
+.fix > .when{font-size:13px; color:var(--dim); margin:0 0 17px}
+
+/* ── 단계 ── */
+.steps{counter-reset:s; list-style:none; padding:0; margin:0}
+.steps li{position:relative; padding:0 0 16px 29px; counter-increment:s}
+.steps li::before{
+  content:counter(s); position:absolute; left:0; top:3px;
+  font-size:12px; font-weight:700; color:var(--dim);
+  font-variant-numeric:tabular-nums;
+}
+.steps li::after{
+  content:""; position:absolute; left:6.5px; top:22px; bottom:4px;
+  width:1px; background:var(--rule);
+}
+.steps li:last-child::after{display:none}
+.steps li b{display:block; font-size:14px; font-weight:600}
+.steps li .d{font-size:13px; color:var(--dim); display:block; margin-top:1px}
+.cmd{display:flex; gap:6px; margin-top:8px; max-width:min(100%,520px)}
+.cmd code{
+  flex:1; background:var(--ink); color:var(--sheet); padding:7px 11px; border-radius:6px;
+  font-size:12.5px; overflow-x:auto; white-space:nowrap;
+  font-family:ui-monospace,"SF Mono",Consolas,monospace; letter-spacing:-.01em;
+}
+.cmd button{padding:5px 11px; font-size:12.5px; flex:none}
+
+/* ── 주의·안내 ── */
+.warnbox,.infobox{border-radius:8px; padding:13px 16px; font-size:13.5px; margin-top:14px; line-height:1.65}
+.warnbox{background:var(--warn-soft); color:var(--warn)}
+.infobox{background:var(--mark-soft); color:var(--mark)}
+.warnbox b,.infobox b{font-weight:700}
+
+/* ── 표 ── */
+table{width:100%; border-collapse:collapse; font-size:13.5px}
+th,td{text-align:left; padding:10px 16px 10px 0; border-bottom:1px solid var(--rule-soft); vertical-align:top}
+th{color:var(--dim); font-weight:600; font-size:12px; border-bottom-color:var(--rule)}
+td.n,th.n{text-align:right}
+td.n{font-variant-numeric:tabular-nums}
+th:last-child,td:last-child{padding-right:0}
+.pill{display:inline-block; padding:1px 8px; border-radius:4px; font-size:11.5px; font-weight:700}
+.pill.ok{background:var(--ok-soft); color:var(--ok)}
+.pill.warn{background:var(--warn-soft); color:var(--warn)}
+.pill.bad{background:var(--bad-soft); color:var(--bad)}
+
+/* ── 접기 ── */
+details{border-top:1px solid var(--rule-soft); padding-top:15px; margin-top:17px}
+details summary{
+  cursor:pointer; font-size:13.5px; font-weight:600; color:var(--mark);
+  list-style:none; user-select:none;
+}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"+"; display:inline-block; width:14px; font-weight:700}
+details[open] summary::before{content:"\2212"}
+details .body{padding-top:13px}
+.todo li details{border-top:0; margin:10px 0 0; padding-top:0}
+.todo li details summary{font-size:13px}
+
+/* ── 체크리스트 ── */
+.bar{height:3px; background:var(--rule); border-radius:2px; margin:12px 0 5px; overflow:hidden}
+.bar div{height:100%; background:var(--ink); transition:width .3s cubic-bezier(.2,.8,.3,1)}
+.chk{
+  display:flex; gap:12px; align-items:flex-start; padding:12px 0;
+  border-top:1px solid var(--rule-soft); cursor:pointer;
+}
+.chk input{margin:4px 0 0; width:16px; height:16px; flex:none; accent-color:var(--ink); cursor:pointer}
+.chk .t{font-size:14px; font-weight:500}
+.chk .d{font-size:12.5px; color:var(--dim); display:block; margin-top:1px}
+.chk.done .t{text-decoration:line-through; opacity:.45}
+.chk.done .d{opacity:.5}
+.grp{margin-bottom:28px}
+.grp h3{
+  font-size:15px; font-weight:700; letter-spacing:-.02em; margin:0;
+  display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+}
+.grp h3 small{font-weight:400; color:var(--dim); font-size:12.5px; font-variant-numeric:tabular-nums}
+
+/* ── 추세 ── */
+.trend{display:flex; gap:5px; align-items:flex-end; justify-content:flex-start; height:62px; margin:12px 0 24px}
+.trend div{flex:1 1 0; min-width:10px; max-width:42px; background:var(--mark); border-radius:2px 2px 0 0; opacity:.75; position:relative}
+.trend div:last-child{opacity:1}
+.trend div span{
+  position:absolute; bottom:-18px; left:0; right:0; text-align:center;
+  font-size:10px; color:var(--dim); font-variant-numeric:tabular-nums;
+}
+
+/* ── 파일 받기 ── */
+.drop{
+  border:1px dashed var(--rule); border-radius:var(--r); padding:30px 20px;
+  text-align:center; color:var(--dim); font-size:13.5px; cursor:pointer;
+  transition:border-color .15s, color .15s;
+}
+.drop:hover,.drop.over{border-color:var(--mark); color:var(--mark); border-style:solid}
+
+pre.notice{
+  background:var(--paper); border-radius:8px; padding:17px 19px; margin:0;
+  font-family:inherit; font-size:13px; white-space:pre-wrap; line-height:1.85;
+}
+code{
+  background:var(--paper); padding:1px 5px; border-radius:4px; font-size:12.5px;
+  font-family:ui-monospace,"SF Mono",Consolas,monospace;
+}
+.empty{color:var(--dim); font-size:13.5px; text-align:center; padding:30px 0}
+.hidden{display:none}
+footer{text-align:center; color:var(--dim); font-size:12px; margin-top:34px}
+
+@media (prefers-reduced-motion:reduce){ *{transition:none !important; animation:none !important} }
+@media (max-width:600px){
+  .wrap{padding:0 14px 70px}
+  .card{padding:26px 0 4px}
+  .card h2 + .hint{padding-left:0}
+  h1{font-size:23px}
+  .read .v{font-size:32px}
+}
+@media print{
+  .tabs,.filt,button,textarea,.drop,.gauge{display:none !important}
+  .hidden{display:block !important}
+  body{background:#fff; font-size:11.5px}
+  .card{break-inside:avoid; padding:0 0 16px; margin:0; border-top:0}
+  .fix,.read{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>학교 PC 자가점검</h1>
+  <p class="sub">점검 스크립트를 돌리고 결과를 붙여넣으면, 조치가 필요한 항목을 알려줍니다. 설정은 바꾸지 않습니다.</p>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="on" data-tab="check">점검하기</button>
+  <button data-tab="fix">조치 방법</button>
+  <button data-tab="routine">관리 루틴</button>
+  <button data-tab="admin">정보부</button>
+  <button data-tab="deploy">배포 안내</button>
+</nav>
+
+<!-- ══════════ 탭 1: 점검하기 ══════════ -->
+<div id="tab-check">
+  <section class="card">
+    <h2><span class="num">1</span> 점검 스크립트 받기 <span class="tier t1">초급</span></h2>
+    <p class="hint">버튼을 누르면 스크립트가 복사됩니다. 메모장에 붙여넣고 저장하세요.
+    <b>이 스크립트는 읽기만 하고 아무것도 바꾸지 않습니다.</b></p>
+    <div class="row">
+      <button class="primary" id="copyScript">스크립트 복사</button>
+      <button id="showScript">내용 보기</button>
+      <span id="copyMsg" style="color:var(--ok); font-size:13.5px"></span>
+    </div>
+    <div class="infobox">
+      <b>저장할 때 두 가지만 주의하세요.</b><br>
+      · 파일 형식을 <b>모든 파일</b>로 바꾸고 이름은 <code>PC점검.ps1</code><br>
+      · 인코딩은 <b>UTF-8(BOM)</b> — 그냥 UTF-8로 하면 한글이 깨집니다
+    </div>
+    <div id="scriptBox" class="hidden" style="margin-top:14px">
+      <textarea id="scriptText" readonly style="min-height:230px; font-size:12px"></textarea>
+    </div>
+    <details>
+      <summary>실행이 안 될 때</summary>
+      <div class="body">
+        <p style="margin-top:0">저장한 파일을 <b>우클릭 → PowerShell로 실행</b>합니다. 실행 정책 오류가 나면
+        PowerShell을 열고 아래를 한 번 실행한 뒤 다시 시도하세요. 관리자 권한은 필요 없습니다.</p>
+        <code>Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned</code>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">2</span> 결과 붙여넣기</h2>
+    <p class="hint">스크립트가 끝나면 결과가 자동으로 복사됩니다. 아래 칸에 <code>Ctrl+V</code>.</p>
+    <textarea id="input" placeholder="여기에 붙여넣기 (Ctrl+V)"></textarea>
+    <div class="row" style="margin-top:11px">
+      <button class="primary" id="analyze">분석하기</button>
+      <button id="demo">예시로 둘러보기</button>
+      <span id="err" style="color:var(--bad); font-size:13.5px"></span>
+    </div>
+  </section>
+
+  <section class="card hidden" id="result">
+    <h2><span class="num">3</span> 점검 결과</h2>
+    <p class="hint" id="meta"></p>
+    <div id="verdict"></div>
+    <div class="grid" id="stats"></div>
+    <ul class="todo" id="todo"></ul>
+    <div id="todoNote"></div>
+    <details>
+      <summary>CPU 상위 프로세스 자세히 보기</summary>
+      <div class="body">
+        <p style="margin-top:0; color:var(--muted); font-size:13.5px">
+          <b>분당초</b>는 PC가 켜져 있는 1분당 그 프로그램이 CPU를 쓴 시간입니다. 1초 미만이면 정상,
+          3초를 넘으면 범인일 가능성이 큽니다. 부팅 직후엔 높게 나오니 켜고 30분 뒤가 정확합니다.
+        </p>
+        <table>
+          <thead><tr><th>프로그램</th><th class="n">분당초</th><th class="n">누적 CPU</th><th class="n">메모리</th></tr></thead>
+          <tbody id="procRows"></tbody>
+        </table>
+        <div id="deadBox"></div>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2 style="padding-left:0">내 점검 기록</h2>
+    <p class="hint">이 브라우저에만 저장됩니다. 서버로 전송되지 않습니다.</p>
+    <div id="history"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="export">결과 파일로 내보내기</button>
+      <button id="clear">기록 지우기</button>
+    </div>
+  </section>
+</div>
+
+<!-- ══════════ 탭 2: 조치 방법 ══════════ -->
+<div id="tab-fix" class="hidden">
+  <section class="card">
+    <h2 style="padding-left:0">Win+R 한 번으로 바로 가기</h2>
+    <p class="hint">설정 화면을 메뉴에서 찾아 들어갈 필요가 없습니다. <b>Win 키 + R</b> 을 누르고 아래 명령을 붙여넣은 뒤 엔터만 치면 그 화면이 바로 열립니다.</p>
+    <div id="shortcuts"></div>
+  </section>
+
+  <section class="card">
+    <h2 style="padding-left:0">문제별 해결 절차</h2>
+    <p class="hint">난이도는 <b>아는 것이 많은지가 아니라, 실수했을 때 되돌릴 수 있는지</b>로 나눴습니다.
+    점검 결과의 '지금 할 일' 에서도 같은 내용이 그 자리에 펼쳐집니다.</p>
+    <div class="row filt" id="tierFilter" style="margin-bottom:6px"></div>
+    <div id="fixList"></div>
+  </section>
+
+  <section class="card">
+    <h2 style="padding-left:0">임시파일 자동 정리 스크립트 <span class="tier t3">고급</span></h2>
+    <p class="hint">임시 폴더와 휴지통을 한 번에 비웁니다. <b>먼저 미리보기로 얼마나 지울 수 있는지 보여주고, 동의해야 지웁니다.</b></p>
+    <div class="warnbox">
+      <b>이 스크립트는 파일을 삭제합니다.</b> 점검 스크립트와 달리 읽기 전용이 아닙니다.
+      대상은 임시 폴더와 휴지통뿐이며, 시스템 파일과 개인 문서는 건드리지 않습니다.
+      사용 중인 파일은 건너뜁니다. 그래도 <b>처음에는 미리보기만 해보시길 권합니다.</b>
+    </div>
+    <div class="row" style="margin-top:13px">
+      <button class="primary" id="copyClean">정리 스크립트 복사</button>
+      <button id="showClean">내용 보기</button>
+      <span id="cleanMsg" style="color:var(--ok); font-size:13.5px"></span>
+    </div>
+    <div id="cleanBox" class="hidden" style="margin-top:13px">
+      <textarea id="cleanText" readonly style="min-height:220px; font-size:12px"></textarea>
+    </div>
+    <div class="infobox">
+      <b>용량 정리를 더 깊이 하시려면</b><br> 디스크 정리 도구, 브라우저 캐시, 앱별 구버전, 최대 절전 모드 해제까지
+      단계별로 정리된 <b>「Windows PC 불필요한 파일 삭제 완전 가이드」</b> 를 함께 보세요.
+      이 앱은 그 가이드가 다루지 않는 <b>메모리·CPU·시작프로그램</b> 쪽을 맡습니다.
+    </div>
+  </section>
+</div>
+
+<!-- ══════════ 탭 3: 관리 루틴 ══════════ -->
+<div id="tab-routine" class="hidden">
+  <section class="card">
+    <h2 style="padding-left:0">이번 기간 진도</h2>
+    <p class="hint">체크는 자동 저장되고, <b>주기가 바뀌면 저절로 초기화</b>됩니다. 매주 항목은 월요일에, 매월 항목은 1일에, 분기 항목은 분기 첫날에 비워집니다.</p>
+    <div id="progress"></div>
+  </section>
+  <section class="card" id="checklist"></section>
+  <section class="card">
+    <details open style="border:0; margin:0; padding:0">
+      <summary>하지 않아도 되는 것</summary>
+      <div class="body">
+        <table>
+          <thead><tr><th>항목</th><th>이유</th></tr></thead>
+          <tbody>
+            <tr><td>조각 모음(디프래그)</td><td>SSD에는 불필요하고 수명만 줄인다. Windows가 알아서 TRIM을 돌린다</td></tr>
+            <tr><td>시중 최적화 프로그램</td><td>제거한 PC Manager처럼 오히려 자원을 먹는다</td></tr>
+            <tr><td>레지스트리 청소기</td><td>체감 효과가 없고 업무 보안 프로그램을 깨뜨릴 위험이 있다</td></tr>
+            <tr><td>백신 추가 설치</td><td>Windows 보안 + 안랩 Safe Transaction으로 충분하다</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+    <details>
+      <summary>건드리면 안 되는 프로그램</summary>
+      <div class="body">
+        <p style="margin-top:0">아래는 교육청 업무 시스템용 보안 모듈입니다. 잡다해 보여도 끄거나 지우면
+        <b>나이스·업무포털 로그인이나 공문 결재가 막힐 수 있습니다.</b></p>
+        <table>
+          <thead><tr><th>이름</th><th>역할</th></tr></thead>
+          <tbody id="keepRows"></tbody>
+        </table>
+      </div>
+    </details>
+    <details>
+      <summary>증상별 1차 대응</summary>
+      <div class="body">
+        <table>
+          <thead><tr><th>증상</th><th>흔한 원인</th><th>1차 대응</th></tr></thead>
+          <tbody id="symptomRows"></tbody>
+        </table>
+        <div class="warnbox">
+          <b>정보부에 넘길 기준</b><br> 나이스·업무포털 로그인 불가 · 보안 프로그램 설치창 무한 반복 ·
+          파란 화면(블루스크린) · 디스크 상태가 Healthy 아님 · 모르는 프로그램이 저절로 설치됨
+        </div>
+      </div>
+    </details>
+  </section>
+</div>
+
+<!-- ══════════ 탭 3: 정보부 ══════════ -->
+<div id="tab-admin" class="hidden">
+  <section class="card">
+    <h2 style="padding-left:0">여러 PC 결과 모아보기</h2>
+    <p class="hint">선생님들이 <b>결과 파일로 내보내기</b>로 보낸 파일을 한꺼번에 불러오면 비교표가 만들어집니다.
+    파일 이름이 선생님 이름이 되니 <code>김광배.json</code> 처럼 받으시면 편합니다.</p>
+    <div class="drop" id="drop">
+      파일을 여기에 끌어다 놓거나 클릭해서 선택하세요<br>
+      <span style="font-size:12.5px">여러 개를 한 번에 선택할 수 있습니다</span>
+    </div>
+    <input type="file" id="files" accept=".json,application/json" multiple class="hidden">
+    <details>
+      <summary>파일을 못 쓰는 환경이면 — 직접 붙여넣기</summary>
+      <div class="body">
+        <p style="margin-top:0">이름과 결과를 아래 형식으로 붙여넣고 추가하세요. 여러 명을 반복해도 됩니다.</p>
+        <div class="row" style="margin-bottom:9px">
+          <input id="pName" placeholder="선생님 이름" style="padding:9px 13px; border:1px solid var(--line); border-radius:9px; font-family:inherit; font-size:14px">
+          <button id="pAdd">추가</button>
+        </div>
+        <textarea id="pJson" placeholder="점검 결과 JSON 붙여넣기" style="min-height:80px"></textarea>
+      </div>
+    </details>
+    <div class="row" style="margin-top:12px">
+      <button id="adminDemo">예시로 둘러보기</button>
+      <button id="adminClear">모아둔 것 비우기</button>
+      <span id="adminErr" style="color:var(--bad); font-size:13.5px"></span>
+    </div>
+  </section>
+
+  <section class="card hidden" id="adminResult">
+    <h2 style="padding-left:0">취합 결과</h2>
+    <div class="grid" id="adminStats" style="margin-bottom:16px"></div>
+    <table>
+      <thead><tr><th>선생님</th><th>측정일</th><th class="n">메모리</th><th class="n">디스크 여유</th><th>CPU 1위</th><th>판정</th></tr></thead>
+      <tbody id="adminRows"></tbody>
+    </table>
+    <div id="commonBox"></div>
+  </section>
+</div>
+
+<!-- ══════════ 탭 4: 배포 안내 ══════════ -->
+<div id="tab-deploy" class="hidden">
+  <section class="card">
+    <h2 style="padding-left:0">선생님들께 보낼 안내문</h2>
+    <p class="hint">업무 메신저나 메일에 그대로 붙여넣으시면 됩니다. 학교 사정에 맞게 고쳐 쓰세요.</p>
+    <pre class="notice" id="noticeText"></pre>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="copyNotice">안내문 복사</button>
+      <span id="noticeMsg" style="color:var(--ok); font-size:13.5px"></span>
+    </div>
+    <div class="warnbox">
+      <b>안내문에 이 페이지 주소를 넣어야 합니다.</b> 주소창의 링크를 복사해 안내문의
+      <code>[여기에 링크]</code> 자리에 바꿔 넣으세요. 공유 설정을 하지 않으면 선생님들은 열 수 없습니다.
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 style="padding-left:0">배포 방법 세 가지</h2>
+    <p class="hint">학교 사정에 맞는 것을 고르시면 됩니다. 아래로 갈수록 손은 더 가지만 참여율이 높습니다.</p>
+    <div id="deployWays"></div>
+  </section>
+
+  <section class="card">
+    <details open style="border:0;margin:0;padding:0">
+      <summary>배포 전 확인할 것</summary>
+      <div class="body" id="deployCheck"></div>
+    </details>
+    <details>
+      <summary>설계 노트 — 이 앱은 왜 이렇게 만들었나</summary>
+      <div class="body" id="designNote"></div>
+    </details>
+  </section>
+</div>
+
+<footer>학교 PC 자가점검 · 측정값은 각자 브라우저에만 저장됩니다</footer>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+/* ═══════════════════════════════════════════════════════════
+   점검 스크립트
+   브라우저는 샌드박스 안이라 PC 상태를 직접 읽지 못한다.
+   PowerShell이 "센서"로 JSON을 만들어 클립보드에 넣고,
+   이 앱은 그 JSON을 받아 "계기판" 역할만 한다.
+   ═══════════════════════════════════════════════════════════ */
+const SCRIPT = String.raw`# ===== 학교 PC 자가점검 (읽기 전용) =====
+# 결과를 JSON으로 만들어 클립보드에 복사합니다. 설정은 변경하지 않습니다.
+
+$os  = Get-CimInstance Win32_OperatingSystem
+$min = [math]::Round(((Get-Date) - $os.LastBootUpTime).TotalMinutes, 0)
+if ($min -lt 1) { $min = 1 }
+
+$disks = @(Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | ForEach-Object {
+    [pscustomobject]@{
+        id      = $_.DeviceID
+        freeGB  = [math]::Round($_.FreeSpace / 1GB, 1)
+        freePct = [math]::Round($_.FreeSpace / $_.Size * 100, 0)
+    }
+})
+
+$top = @(Get-Process | Where-Object { $_.CPU -gt 0 } |
+    Sort-Object CPU -Descending | Select-Object -First 10 | ForEach-Object {
+        [pscustomobject]@{
+            name      = $_.Name
+            cpu       = [math]::Round($_.CPU, 0)
+            cpuPerMin = [math]::Round($_.CPU / $min, 2)
+            memMB     = [math]::Round($_.WorkingSet64 / 1MB, 0)
+        }
+    })
+
+# 죽은 시작 항목 ① 시작 폴더의 바로가기
+$ws = New-Object -ComObject WScript.Shell
+$deadLnk = @(
+    @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp",
+      "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup") |
+    ForEach-Object { Get-ChildItem $_ -Filter *.lnk -ErrorAction SilentlyContinue } |
+    ForEach-Object {
+        $t = $ws.CreateShortcut($_.FullName).TargetPath
+        if ($t -and -not (Test-Path $t)) { $_.Name }
+    }
+)
+
+# 죽은 시작 항목 ② 레지스트리에 등록됐지만 프로그램이 없는 것
+# 따옴표 없는 경로("C:\Program Files\..")도 첫 .exe 까지 끊어 제대로 찾습니다.
+$deadReg = @(
+    @("HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+      "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run") |
+    ForEach-Object {
+        $k = $_
+        if (Test-Path $k) {
+            (Get-Item $k).Property | ForEach-Object {
+                $name = $_
+                $cmd  = [string](Get-ItemProperty -Path $k -Name $name).$name
+                $exe  = $null
+                if     ($cmd -match '^\s*"([^"]+)"')  { $exe = $Matches[1] }
+                elseif ($cmd -match '^\s*(.+?\.exe)') { $exe = $Matches[1] }
+                if ($exe -and -not (Test-Path $exe)) { $name }
+            }
+        }
+    }
+)
+
+# 시작앱 사용/해제 개수
+$states = @(
+    @("HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run",
+      "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder",
+      "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run",
+      "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder") |
+    ForEach-Object {
+        $k = $_
+        if (Test-Path $k) {
+            (Get-Item $k).Property | ForEach-Object {
+                $v = (Get-ItemProperty -Path $k -Name $_).$_
+                if ($v[0] -eq 2 -or $v[0] -eq 6) { "on" } else { "off" }
+            }
+        }
+    }
+)
+
+$result = [pscustomobject]@{
+    date       = (Get-Date -Format "yyyy-MM-dd HH:mm")
+    uptimeMin  = $min
+    memUsedPct = [math]::Round((1 - ($os.FreePhysicalMemory / $os.TotalVisibleMemorySize)) * 100, 0)
+    memFreeGB  = [math]::Round($os.FreePhysicalMemory / 1MB, 1)
+    memTotalGB = [math]::Round($os.TotalVisibleMemorySize / 1MB, 1)
+    procCount  = (Get-Process).Count
+    disks      = $disks
+    top        = $top
+    deadLinks  = $deadLnk
+    deadReg    = $deadReg
+    startupOn  = @($states | Where-Object { $_ -eq "on" }).Count
+    startupOff = @($states | Where-Object { $_ -eq "off" }).Count
+}
+
+Set-Clipboard -Value ($result | ConvertTo-Json -Depth 4 -Compress)
+
+Write-Host ""
+Write-Host "  점검이 끝났습니다." -ForegroundColor Green
+Write-Host "  결과가 클립보드에 복사되었습니다. 웹앱에 Ctrl+V 로 붙여넣으세요."
+Write-Host ""
+Read-Host "  엔터를 누르면 닫힙니다"
+`;
+
+/* ═══════════════════════════════════════════════════════════
+   조치 절차 — 진단이 가리킨 문제를 실제로 없애는 방법
+   같은 데이터를 '지금 할 일' 카드와 '조치 방법' 탭이 함께 쓴다.
+   ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   난이도 — '아는 게 많은가' 가 아니라 '되돌릴 수 있는가' 로 나눈다.
+   실수했을 때 무슨 일이 벌어지는지가 선생님께 필요한 판단 기준이다.
+   ═══════════════════════════════════════════════════════════ */
+const TIERS = {
+  1: { name:"초급", short:"누구나 할 수 있습니다", lead:"실수해도 되돌릴 일이 없습니다",
+       desc:"지우는 것이 없고, 설정도 언제든 원래대로 돌아갑니다." },
+  2: { name:"중급", short:"무엇을 끄는지 보고 하세요", lead:"되돌릴 수 있지만 무엇을 끄는지 보고 하세요",
+       desc:"끄거나 닫는 동작이 있습니다. 잘못했으면 같은 자리에서 되돌리면 됩니다." },
+  3: { name:"고급", short:"신중히 하세요", lead:"지우거나 오래 걸립니다",
+       desc:"삭제가 포함되거나 중간에 멈추면 안 되는 작업입니다. 확신이 없으면 정보부에 요청하세요." }
+};
+/* 조치마다 난이도. 한곳에 모아두어 기준을 바꾸기 쉽게 했다. */
+const FIX_TIER = {
+  reboot:1, onedrive:1, scripterr:1,
+  startup:2, memory:2,
+  disk:3, deadlink:3, sysfile:3
+};
+const badge = n => `<span class="tier t${n}">${TIERS[n].name}</span>`;
+
+/* 업무 필수 보안 모듈 — 조치 절차 안에도, 관리 루틴 탭에도 같은 목록이 쓰인다 */
+const KEEP = [
+  ["AhnLab Safe Transaction","업무포털 구간 암호화"],
+  ["wizvera-veraport","보안프로그램 자동 설치·관리"],
+  ["CrossEXService","브라우저와 보안모듈 연결"],
+  ["INISAFE / MagicLine / AnySign","전자서명·공동인증서"],
+  ["MaEPSBroker","교육행정 전자문서"],
+  ["M2Soft Reporting","나이스 출력·리포트"],
+  ["Knox Drive / BrityMessenger","문서중앙화·업무 메신저"],
+  ["PIAgent / PIProtector","개인정보 유출방지(DLP)"],
+  ["GOE메신저 / 컴시간알리미","업무 메신저·시간표 알림"]
+];
+
+const SHORTCUTS = [
+  ["ms-settings:storagesense", "저장소", "무엇이 디스크를 쓰는지 분류별로 보기", 1],
+  ["taskmgr", "작업 관리자", "실행 중인 프로그램 확인", 1],
+  ["ms-settings:startupapps", "시작 앱 설정", "부팅할 때 자동 실행되는 프로그램 켜고 끄기", 2],
+  ["cleanmgr", "디스크 정리", "Windows 기본 정리 도구", 2],
+  ["inetcpl.cpl", "인터넷 옵션", "스크립트 오류창 끄기 등", 2],
+  ["%TEMP%", "임시 폴더", "프로그램이 만든 찌꺼기 파일. 지우는 작업입니다", 3],
+  ["ms-settings:appsfeatures", "설치된 앱", "프로그램을 제거하거나 크기순으로 정렬", 3],
+  ["shell:common startup", "공용 시작 폴더", "모든 사용자에게 적용되는 시작 바로가기", 3],
+  ["shell:startup", "개인 시작 폴더", "내 계정에만 적용되는 시작 바로가기", 3]
+];
+
+const FIXES = {
+  reboot: {
+    title: "재부팅하기",
+    when: "며칠째 켜둔 PC가 느려졌을 때 · 무엇을 해도 안 나아질 때",
+    steps: [
+      { t:"절전모드로 덮지 말고 제대로 끄세요",
+        d:"노트북을 닫거나 절전으로 두면 메모리가 그대로 남아 아무것도 정리되지 않습니다." },
+      { t:"시작 → 전원 → 다시 시작",
+        d:"'시스템 종료' 가 아니라 '다시 시작' 입니다. 빠른 시작 기능 때문에 종료는 완전한 재부팅이 아닐 수 있습니다." },
+      { t:"3~5분 기다렸다가 쓰세요",
+        d:"부팅 직후에는 백신 검사와 업데이트 확인이 몰려 오히려 느립니다. 그건 정상입니다." }
+    ],
+    warn: "재부팅 전에 열어둔 문서를 모두 저장하세요. 한글이나 엑셀이 '저장하시겠습니까' 를 띄우고 기다리면 재부팅이 멈춰 있을 수 있습니다. Windows 업데이트가 설치 중이라면 끝날 때까지 기다리세요.",
+    effect: "메모리 누수와 일시적 오류의 절반 이상이 여기서 해결됩니다."
+  },
+
+  startup: {
+    title: "자동 시작 끄기",
+    when: "특정 프로그램이 CPU를 계속 쓸 때 · 부팅이 오래 걸릴 때",
+    steps: [
+      { t:"시작 앱 설정을 엽니다", d:"Win+R 을 누르고 아래를 붙여넣은 뒤 엔터", cmd:"ms-settings:startupapps" },
+      { t:"해당 프로그램의 토글을 끕니다",
+        d:"'시작 시 영향' 이 높음으로 표시된 것부터 보세요. 프로그램이 지워지는 게 아니라, 부팅 때 자동으로 켜지지 않을 뿐입니다." },
+      { t:"목록에 없으면 작업 관리자에서 찾습니다",
+        d:"시작 프로그램 앱 탭에서 우클릭 → 사용 안 함", cmd:"taskmgr" },
+      { t:"그래도 없으면 그 앱 자체 설정에서 꺼야 합니다",
+        d:"Adobe Creative Cloud, 카카오톡, 백신류는 윈도우 목록에 안 뜨는 경우가 많습니다. 앱을 열고 환경설정에서 '시작 시 실행' 을 찾으세요." },
+      { t:"재부팅해야 적용됩니다",
+        d:"끄기만 해서는 이미 떠 있는 프로그램이 내려가지 않습니다." },
+      { t:"목록 어디에도 없으면 더 손대지 마세요",
+        d:"작업 스케줄러나 서비스로 등록된 경우입니다. 잘못 건드리면 업무 프로그램이 깨지니 정보부에 문의하세요." }
+    ],
+    keepList: true,
+    warn: "아래 이름이 들어간 항목은 절대 끄지 마세요. 나이스·업무포털 로그인이나 공문 결재가 막힙니다. 끈 뒤에 문제가 생기면 같은 자리에서 다시 '사용' 으로 돌리면 복구됩니다.",
+    effect: "부팅 속도와 평상시 CPU 사용량이 함께 내려갑니다."
+  },
+
+  deadlink: {
+    title: "죽은 바로가기 지우기",
+    when: "점검 결과에 죽은 바로가기가 잡혔을 때 · 시작할 때 오류창이 뜰 때",
+    steps: [
+      { t:"공용 시작 폴더를 엽니다", d:"Win+R 에 붙여넣고 엔터", cmd:"shell:common startup" },
+      { t:"점검 결과에 나온 이름의 .lnk 파일을 찾습니다",
+        d:"여기 없으면 개인 시작 폴더도 확인하세요 — shell:startup" },
+      { t:"그 파일만 선택해 Delete",
+        d:"'관리자 권한이 필요합니다' 창이 뜨면 계속을 누르세요. 다른 파일은 건드리지 마세요." },
+      { t:"지우기 망설여지면 다른 폴더로 옮기세요",
+        d:"잘라내기 해서 바탕화면에 붙여넣어도 효과는 같습니다. 문제가 생기면 되돌릴 수 있습니다." },
+      { t:"'레지스트리의 죽은 등록' 으로 잡힌 것은 다르게 처리합니다",
+        d:"시작 폴더에 파일이 없습니다. 작업 관리자의 시작 프로그램 앱 탭에서 같은 이름을 찾아 '사용 안 함' 으로 두세요.", cmd:"taskmgr" }
+    ],
+    warn: "레지스트리 편집기(regedit)로 직접 지우지 마세요. 한 글자만 틀려도 복구가 어렵고, '사용 안 함' 만으로 효과는 같습니다. 또한 가리키는 프로그램이 없는 항목만 잡아내지만, 네트워크 드라이브나 USB에 설치된 프로그램은 연결이 끊겼을 때 잘못 잡힐 수 있으니 이름을 보고 판단하세요.",
+    effect: "부팅할 때마다 없는 경로를 찾던 시간이 사라지고, 반복되던 오류창도 멈춥니다."
+  },
+
+  memory: {
+    title: "메모리 확보하기",
+    when: "메모리 사용률이 70%를 넘을 때 · 창을 바꿀 때마다 버벅일 때",
+    steps: [
+      { t:"먼저 재부팅해 보세요", d:"가장 빠르고 확실합니다. 이것만으로 대부분 돌아옵니다." },
+      { t:"작업 관리자를 열어 메모리순으로 정렬합니다",
+        d:"프로세스 탭에서 '메모리' 머리글을 클릭하면 많이 쓰는 순으로 정렬됩니다.", cmd:"taskmgr" },
+      { t:"안 쓰는 프로그램을 종료합니다",
+        d:"내가 직접 켠 프로그램만 닫으세요. 이름을 모르는 항목은 건드리지 마세요." },
+      { t:"브라우저 탭을 정리합니다",
+        d:"탭 하나가 수백 MB를 쓰기도 합니다. 나중에 볼 페이지는 즐겨찾기에 넣고 닫으세요." }
+    ],
+    warn: "'작업 끝내기' 는 저장 여부를 묻지 않고 즉시 종료합니다. 한글·엑셀처럼 작업 중인 문서가 있으면 그대로 날아갑니다. 종료하기 전에 반드시 저장하고, 가능하면 프로그램 자체의 닫기 버튼을 쓰세요. 이름을 모르는 시스템 프로세스를 종료하면 PC가 강제로 꺼질 수 있습니다.",
+    effect: "창 전환과 프로그램 실행이 눈에 띄게 빨라집니다."
+  },
+
+  onedrive: {
+    title: "OneDrive로 공간 확보하기",
+    when: "C드라이브가 부족한데 지울 파일이 없을 때 · 바탕화면·문서가 OneDrive에 연결돼 있을 때",
+    steps: [
+      { t:"파일 탐색기 왼쪽에서 OneDrive 폴더를 찾습니다",
+        d:"구름 아이콘이 붙어 있습니다. 바탕화면과 문서 폴더가 이 안에 들어가 있는 경우가 많습니다." },
+      { t:"폴더를 우클릭하고 '여유 공간 확보' 를 누릅니다",
+        d:"메뉴에 '공간 확보' 또는 'Free up space' 로 보일 수도 있습니다. 폴더 전체 또는 개별 파일에 적용할 수 있습니다." },
+      { t:"아이콘이 구름 모양으로 바뀌면 끝입니다",
+        d:"초록 체크는 PC에 저장됨, 구름은 클라우드에만 있음을 뜻합니다. 파일은 목록에 그대로 보입니다." },
+      { t:"자주 쓰는 폴더는 '항상 유지' 로 되돌릴 수 있습니다",
+        d:"우클릭 → '이 장치에 항상 유지'. 오프라인에서도 열어야 하는 자료는 이렇게 두세요." }
+    ],
+    warn: "OneDrive 폴더 안의 파일을 Delete 키로 지우면 클라우드에서도 지워지고, 다른 기기에서도 사라집니다. 공간만 비우려면 반드시 '여유 공간 확보' 를 쓰세요. 그리고 구름 상태인 파일은 인터넷이 끊기면 열 수 없으니, 출장이나 외부 수업 전에는 필요한 파일을 '항상 유지' 로 바꿔두세요.",
+    effect: "파일을 하나도 잃지 않고 수 GB를 확보할 수 있습니다. 디스크가 부족할 때 가장 안전한 방법입니다."
+  },
+
+  sysfile: {
+    title: "시스템 파일 복구하기",
+    when: "원인을 못 찾겠는데 계속 이상할 때 · 설명 없는 오류가 반복될 때",
+    steps: [
+      { t:"관리자 권한 PowerShell을 엽니다",
+        d:"시작 버튼 우클릭 → '터미널(관리자)' 또는 'Windows PowerShell(관리자)'" },
+      { t:"시스템 파일 검사를 돌립니다",
+        d:"손상된 Windows 파일을 찾아 자동으로 고칩니다. 10~20분 걸립니다.", cmd:"sfc /scannow" },
+      { t:"고치지 못했다고 나오면 이것을 먼저 실행합니다",
+        d:"Windows 이미지 자체를 복구합니다. 20~30분 걸리고 인터넷 연결이 필요합니다.",
+        cmd:"DISM /Online /Cleanup-Image /RestoreHealth" },
+      { t:"DISM이 끝나면 sfc /scannow 를 한 번 더 돌립니다",
+        d:"이 순서로 해야 복구가 됩니다." }
+    ],
+    warn: "데이터를 지우거나 설정을 바꾸지 않는 복구 도구라 안전합니다. 다만 시간이 오래 걸리니 중간에 창을 닫지 마세요. 업무 시간에는 피하시는 게 좋습니다.",
+    effect: "원인 불명의 오류, 설정 창이 안 열리는 문제, 업데이트 실패가 해결되는 경우가 많습니다."
+  },
+
+  disk: {
+    title: "디스크 공간 확보하기",
+    when: "여유 공간이 20% 아래로 떨어졌을 때 · 저장할 때마다 멈출 때",
+    steps: [
+      { t:"Windows 디스크 정리를 먼저 돌립니다",
+        d:"가장 안전한 방법입니다. C드라이브를 고르고 '시스템 파일 정리' 까지 누르세요.", cmd:"cleanmgr" },
+      { t:"임시 폴더를 비웁니다",
+        d:"전체 선택 후 Delete. 사용 중인 파일은 건너뛰기를 누르면 됩니다.", cmd:"%TEMP%" },
+      { t:"OneDrive를 쓰신다면 '여유 공간 확보' 가 가장 효과적입니다",
+        d:"파일을 하나도 잃지 않고 수 GB가 비워집니다. 아래 'OneDrive로 공간 확보하기' 를 보세요." },
+      { t:"설치된 앱을 크기순으로 정렬합니다",
+        d:"정렬 기준을 '크기' 로 바꾸고, 6개월간 안 쓴 큰 프로그램을 제거하세요.", cmd:"ms-settings:appsfeatures" },
+      { t:"무엇이 공간을 쓰는지 확인합니다",
+        d:"분류별로 보여주므로 어디를 손댈지 판단하기 좋습니다.", cmd:"ms-settings:storagesense" }
+    ],
+    warn: "pagefile.sys · swapfile.sys · C:\\Windows · WinSxS · AppData 폴더는 직접 지우지 마세요. 부팅이 안 되거나 프로그램이 깨집니다. Program Files 안의 폴더도 직접 지우지 말고 '설정 → 앱' 에서 제거하세요. 디스크 정리의 '시스템 파일 정리' 에서 '이전 Windows 설치' 를 지우면 이전 버전으로 되돌릴 수 없게 되니, 업데이트 직후라면 2주쯤 두고 지우세요. 프로그램을 설치하거나 업데이트하는 중에는 임시 폴더를 비우지 마세요. 설치가 깨집니다.",
+    effect: "SSD는 여유가 20% 아래로 떨어지면 쓰기 속도가 떨어집니다. 20%를 회복하는 것이 목표입니다."
+  },
+
+  scripterr: {
+    title: "스크립트 오류창 멈추기",
+    when: "'이 페이지의 스크립트에서 오류가 발생하였습니다' 창이 반복해서 뜰 때",
+    steps: [
+      { t:"인터넷 옵션을 엽니다", d:"Win+R 에 붙여넣고 엔터", cmd:"inetcpl.cpl" },
+      { t:"고급 탭으로 이동합니다", d:"맨 위 '검색' 항목에 관련 설정이 모여 있습니다." },
+      { t:"세 가지를 조정합니다",
+        d:"'스크립트 디버깅 사용 안 함(Internet Explorer)' 체크 · '스크립트 디버깅 사용 안 함(기타)' 체크 · '모든 스크립트 오류에 대한 알림 표시' 체크 해제" },
+      { t:"적용 → 확인 후 재부팅합니다" }
+    ],
+    warn: "오류를 고치는 게 아니라 알림만 끄는 것입니다. 업무 프로그램이 실제로 안 되는 상황이라면 정보부에 문의하세요.",
+    effect: "업무에 지장 없는 알림창이 더 이상 뜨지 않습니다."
+  }
+};
+
+/* 정리 스크립트 — 미리보기 후 동의해야 삭제한다 */
+const CLEAN_SCRIPT = String.raw`# ===== 임시파일 정리 (미리보기 후 삭제) =====
+# 대상: 임시 폴더, Windows 임시 폴더, 휴지통
+# 시스템 파일과 개인 문서는 건드리지 않습니다.
+
+$targets = @(
+    @{ name = "사용자 임시파일";  path = $env:TEMP },
+    @{ name = "Windows 임시파일"; path = "$env:WINDIR\Temp" }
+)
+
+Write-Host ""
+Write-Host "  === 정리할 수 있는 용량 ===" -ForegroundColor Cyan
+
+$total = 0
+foreach ($t in $targets) {
+    $size = 0
+    if (Test-Path $t.path) {
+        $size = (Get-ChildItem $t.path -Recurse -Force -ErrorAction SilentlyContinue |
+                 Measure-Object Length -Sum).Sum
+    }
+    if (-not $size) { $size = 0 }
+    $total += $size
+    "    {0,-20} {1,8:N2} MB" -f $t.name, ($size / 1MB)
+}
+
+$bin = (Get-ChildItem "$env:SystemDrive\`$Recycle.Bin" -Recurse -Force -ErrorAction SilentlyContinue |
+        Measure-Object Length -Sum).Sum
+if (-not $bin) { $bin = 0 }
+$total += $bin
+"    {0,-20} {1,8:N2} MB" -f "휴지통", ($bin / 1MB)
+
+Write-Host ""
+Write-Host ("    합계: {0:N2} MB" -f ($total / 1MB)) -ForegroundColor Yellow
+Write-Host ""
+
+Write-Host "  * 휴지통을 비우면 되돌릴 수 없습니다. 지울 것이 없는지 먼저 확인하세요." -ForegroundColor DarkYellow
+Write-Host "  * 프로그램을 설치하거나 업데이트하는 중이면 지금 실행하지 마세요." -ForegroundColor DarkYellow
+Write-Host ""
+
+$answer = Read-Host "  정말 삭제할까요? 삭제하려면 Y 를 입력하세요 (취소: 엔터)"
+if ($answer -ne "Y" -and $answer -ne "y") {
+    Write-Host "  취소했습니다. 아무것도 지우지 않았습니다." -ForegroundColor Green
+    Read-Host "  엔터를 누르면 닫힙니다"
+    return
+}
+
+foreach ($t in $targets) {
+    if (Test-Path $t.path) {
+        # 사용 중인 파일은 자동으로 건너뜁니다
+        Get-ChildItem $t.path -Recurse -Force -ErrorAction SilentlyContinue |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Write-Host ("  정리함: " + $t.name) -ForegroundColor Green
+}
+# C드라이브 휴지통만 비웁니다 (다른 드라이브는 그대로 둡니다)
+Clear-RecycleBin -DriveLetter $env:SystemDrive.TrimEnd(":") -Force -ErrorAction SilentlyContinue
+Write-Host ("  정리함: 휴지통 (" + $env:SystemDrive + ")") -ForegroundColor Green
+
+Write-Host ""
+Write-Host "  정리가 끝났습니다. 사용 중이던 파일은 건너뛰었습니다." -ForegroundColor Cyan
+Read-Host "  엔터를 누르면 닫힙니다"
+`;
+
+/* ═══════════ 판정 기준 (여기만 고치면 전체가 바뀐다) ═══════════ */
+const RULES = {
+  mem:  { warn:70, bad:85 },
+  disk: { warn:20, bad:10, lowerIsWorse:true },
+  cpu:  { warn:1,  bad:3 }
+};
+const LEVELS = ["ok","warn","bad"];
+const grade = (v,r) => r.lowerIsWorse
+  ? (v < r.bad ? "bad" : v < r.warn ? "warn" : "ok")
+  : (v >= r.bad ? "bad" : v >= r.warn ? "warn" : "ok");
+const WORST = (a,b) => LEVELS[Math.max(LEVELS.indexOf(a), LEVELS.indexOf(b))];
+const LABEL = { ok:"정상", warn:"주의", bad:"조치 필요" };
+
+/* ═══════════ 저장소 (실패해도 앱은 동작한다) ═══════════ */
+const store = {
+  get(k, dflt){ try{ return JSON.parse(localStorage.getItem(k)) ?? dflt; }catch(e){ return dflt; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} },
+  del(k){ try{ localStorage.removeItem(k); }catch(e){} }
+};
+const K_HIST = "pc-check-history", K_CHECK = "pc-check-routine";
+
+/* ═══════════ 탭 전환 ═══════════ */
+$("tabs").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  [...$("tabs").children].forEach(x => x.classList.toggle("on", x === b));
+  ["check","fix","routine","admin","deploy"].forEach(t =>
+    $("tab-"+t).classList.toggle("hidden", t !== b.dataset.tab));
+  window.scrollTo({ top:0, behavior:"smooth" });
+});
+
+/* ═══════════════════════════════════════════════════════════
+   탭 1 — 점검하기
+   ═══════════════════════════════════════════════════════════ */
+function analyze(d){
+  const disks = d.disks || [{ id:"C:", freeGB:0, freePct:100 }];
+  const worstDisk = disks.reduce((a,b) => b.freePct < a.freePct ? b : a);
+  const topProc = (d.top||[])[0] || { name:"-", cpuPerMin:0 };
+  const g = {
+    mem:  grade(d.memUsedPct, RULES.mem),
+    disk: grade(worstDisk.freePct, RULES.disk),
+    cpu:  grade(topProc.cpuPerMin, RULES.cpu),
+    dead: ((d.deadLinks||[]).length + (d.deadReg||[]).length) ? "warn" : "ok"
+  };
+  const deadAll = [...(d.deadLinks||[]), ...(d.deadReg||[])];
+  const overall = [g.mem,g.disk,g.cpu,g.dead].reduce(WORST,"ok");
+
+  /* [제목, 설명, 조치 절차 id] — 세 번째 값이 아래 '해결 방법' 을 펼쳐준다 */
+  const todo = [];
+  if (d.uptimeMin > 60*24*3)
+    todo.push(["재부팅하세요", `${Math.floor(d.uptimeMin/1440)}일째 켜져 있습니다. 재부팅만으로 메모리가 정리됩니다.`, "reboot"]);
+  if (g.mem !== "ok")
+    todo.push(["메모리가 부족합니다", `사용률 ${d.memUsedPct}%. 쓰지 않는 창과 프로그램을 닫아야 합니다.`, "memory"]);
+  if (g.disk !== "ok")
+    todo.push([`${worstDisk.id} 공간을 확보하세요`, `여유 ${worstDisk.freePct}%. 20% 아래면 SSD 쓰기 속도가 떨어집니다.`, "disk"]);
+  if (g.cpu !== "ok")
+    todo.push([`${topProc.name} 이(가) CPU를 많이 씁니다`, `분당 ${topProc.cpuPerMin}초. 업무용 보안 프로그램이 아니라면 자동 시작을 끄세요.`, "startup"]);
+  if (g.dead !== "ok")
+    todo.push(["죽은 시작 항목이 있습니다", `${deadAll.join(", ")} — 이미 지워진 프로그램을 부팅마다 찾고 있습니다.`, "deadlink"]);
+  if (!todo.length)
+    todo.push(["지금은 할 일이 없습니다", "다음 달에 한 번 더 점검하세요.", null]);
+
+  return { g, overall, worstDisk, topProc, todo, deadAll, deadReg:(d.deadReg||[]) };
+}
+
+function render(d){
+  const a = analyze(d);
+  $("meta").textContent = `${d.date} 기준, 켠 지 ${d.uptimeMin}분 지난 상태입니다. 프로그램 ${d.procCount}개가 돌고 있습니다.`;
+
+  const V = {
+    ok:   ["정상입니다","특별히 손댈 것이 없습니다."],
+    warn: ["몇 가지 살펴보세요","당장 문제는 아니지만 두면 느려질 수 있습니다."],
+    bad:  ["조치가 필요합니다","아래 항목을 처리하면 눈에 띄게 나아집니다."]
+  }[a.overall];
+  $("verdict").className = "verdict " + a.overall;
+  $("verdict").innerHTML = `${V[0]}<span>${V[1]}</span>`;
+
+  /* 판독 블록: 값과 함께 임계선 위 위치를 보여준다.
+     숫자만으로는 '44%가 괜찮은 건가' 를 알 수 없기 때문이다. */
+  const clamp = v => Math.max(0, Math.min(100, v));
+  $("stats").innerHTML = [
+    { k:"메모리 사용률", v:d.memUsedPct, u:"%", n:`여유 ${d.memFreeGB}GB / ${d.memTotalGB}GB`,
+      g:a.g.mem, at:clamp(d.memUsedPct), marks:[RULES.mem.warn, RULES.mem.bad] },
+    { k:`${a.worstDisk.id} 여유 공간`, v:a.worstDisk.freePct, u:"%", n:`${a.worstDisk.freeGB}GB 남음`,
+      g:a.g.disk, at:clamp(a.worstDisk.freePct), marks:[RULES.disk.bad, RULES.disk.warn] },
+    { k:"최상위 프로세스", v:a.topProc.cpuPerMin, u:"초/분", n:a.topProc.name,
+      g:a.g.cpu, at:clamp(a.topProc.cpuPerMin/5*100), marks:[RULES.cpu.warn/5*100, RULES.cpu.bad/5*100] },
+    { k:"죽은 시작 항목", v:a.deadAll.length, u:"개", n:a.deadAll.length ? "정리 권장" : "없음",
+      g:a.g.dead }
+  ].map(s => `
+    <div class="read ${s.g}">
+      <div class="k">${esc(s.k)}</div>
+      <div class="v">${esc(s.v)}<u>${esc(s.u)}</u></div>
+      ${ s.marks ? `<div class="gauge" aria-hidden="true">
+           <b style="width:${s.at}%"></b>
+           ${s.marks.map(m => `<s style="left:${clamp(m)}%"></s>`).join("")}
+           <i style="left:${s.at}%"></i></div>` : "" }
+      <div class="n">${esc(s.n)}</div>
+    </div>`).join("");
+
+  $("todo").innerHTML = a.todo.map(([t,s,fix]) => {
+    const n = fix ? FIX_TIER[fix] : 0;
+    return `<li>
+      <b>${esc(t)} ${ n ? badge(n) : "" }</b><em>${esc(s)}</em>${ fix ? `
+      <details><summary>해결 방법 보기 · ${TIERS[n].short}</summary>
+        <div class="body">${fixBody(FIXES[fix])}</div></details>` : "" }</li>`;
+  }).join("");
+
+  /* 전부 초급이면 안심시키고, 고급이 섞였으면 미리 알려준다 */
+  const tiers = a.todo.map(([,,f]) => f ? FIX_TIER[f] : 0).filter(Boolean);
+  const top = Math.max(0, ...tiers);
+  $("todoNote").innerHTML = !top ? "" :
+    top === 1 ? `<div class="infobox" style="margin-top:12px">
+        할 일이 모두 <b>초급</b>입니다. 설명대로만 하시면 되고, 되돌릴 일도 없습니다.</div>`
+    : `<div class="${top===3?"warnbox":"infobox"}" style="margin-top:12px">
+        ${ tiers.includes(1) ? `<b>초급 항목부터 먼저 하세요.</b> 그것만으로 해결되는 경우가 많습니다. ` : "" }
+        가장 높은 난이도는 <b>${TIERS[top].name}</b>이고, ${esc(TIERS[top].lead)}.</div>`;
+
+  $("procRows").innerHTML = (d.top||[]).map(p => {
+    const g = grade(p.cpuPerMin, RULES.cpu);
+    const c = g==="bad" ? "var(--bad)" : g==="warn" ? "var(--warn)" : "inherit";
+    return `<tr><td>${esc(p.name)}</td>
+      <td class="n" style="color:${c};font-weight:${g==="ok"?400:700}">${p.cpuPerMin}</td>
+      <td class="n">${p.cpu}초</td><td class="n">${p.memMB}MB</td></tr>`;
+  }).join("");
+
+  $("deadBox").innerHTML = a.deadAll.length ? `<div class="warnbox">
+    ${ (d.deadLinks||[]).length ? `<b>시작 폴더의 죽은 바로가기:</b> ${esc(d.deadLinks.join(", "))}<br>
+        해당 .lnk 파일을 지우면 됩니다.<br>` : "" }
+    ${ a.deadReg.length ? `<b>레지스트리의 죽은 등록:</b> ${esc(a.deadReg.join(", "))}<br>
+        <b>레지스트리는 직접 고치지 마세요.</b> 작업 관리자의 시작 프로그램 앱 탭에서
+        같은 이름을 찾아 '사용 안 함' 으로 두면 충분합니다.` : "" }
+    </div>` : "";
+
+  $("result").classList.remove("hidden");
+  $("result").scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+function renderHistory(){
+  const h = store.get(K_HIST, []);
+  if (!h.length){ $("history").innerHTML = `<div class="empty">아직 기록이 없습니다.</div>`; return; }
+  const max = Math.max(...h.map(r => r.memUsedPct), 100);
+  const bars = h.slice(-12).map(r =>
+    `<div style="height:${Math.max(6, r.memUsedPct/max*100)}%" title="${esc(r.date)} · 메모리 ${r.memUsedPct}%">
+       <span>${esc(r.date.slice(5,10))}</span></div>`).join("");
+  const rows = h.slice().reverse().slice(0,8).map(r =>
+    `<tr><td>${esc(r.date)}</td><td class="n">${r.memUsedPct}%</td>
+     <td class="n">${r.diskFreePct}%</td><td>${esc(r.topName)} ${r.topPerMin}초/분</td></tr>`).join("");
+  $("history").innerHTML = `
+    <div style="font-size:12.5px;color:var(--muted)">메모리 사용률 추세 (최근 ${Math.min(h.length,12)}회)</div>
+    <div class="trend">${bars}</div>
+    <table style="margin-top:22px">
+      <thead><tr><th>날짜</th><th class="n">메모리</th><th class="n">디스크 여유</th><th>CPU 1위</th></tr></thead>
+      <tbody>${rows}</tbody></table>`;
+}
+
+/* ─── 조치 절차 렌더링 (할 일 카드와 조치 탭이 공유) ─── */
+function fixBody(f){
+  if (!f) return "";
+  return `
+    <ol class="steps">${f.steps.map(s => `
+      <li><b>${esc(s.t)}</b>${ s.d ? `<span class="d">${esc(s.d)}</span>` : "" }
+        ${ s.cmd ? `<div class="cmd"><code>${esc(s.cmd)}</code>
+             <button class="copycmd" data-cmd="${esc(s.cmd)}">복사</button></div>` : "" }
+      </li>`).join("")}</ol>
+    ${ f.warn ? `<div class="warnbox"><b>주의할 점</b><br>${esc(f.warn)}
+         ${ f.keepList ? `<div style="margin-top:9px; padding-top:9px; border-top:1px solid var(--warn-line);
+              font-weight:600; line-height:2">${KEEP.map(k =>
+              `<span style="background:#fff; padding:2px 8px; border-radius:5px; margin-right:5px;
+                white-space:nowrap">${esc(k[0])}</span>`).join("")}</div>` : "" }
+       </div>` : "" }
+    ${ f.effect ? `<div class="infobox"><b>이렇게 하면</b><br>${esc(f.effect)}</div>` : "" }`;
+}
+
+/* 명령 복사는 문서 전체에 한 번만 건다 (카드가 다시 그려져도 계속 작동) */
+document.addEventListener("click", async e => {
+  const b = e.target.closest(".copycmd"); if (!b) return;
+  const cmd = b.dataset.cmd;
+  try{ await navigator.clipboard.writeText(cmd); b.textContent = "복사됨"; }
+  catch(err){
+    const ta = document.createElement("textarea");
+    ta.value = cmd; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); b.textContent = "복사됨"; }
+    catch(e2){ b.textContent = "직접 복사"; }
+    ta.remove();
+  }
+  setTimeout(() => b.textContent = "복사", 2000);
+});
+
+$("shortcuts").innerHTML = SHORTCUTS.map(([cmd,name,desc,n]) => `
+  <div class="sc">
+    <div class="sc-t"><b>${esc(name)}</b> ${badge(n)}</div>
+    <div class="sc-d">${esc(desc)}</div>
+    <div class="cmd"><code>${esc(cmd)}</code>
+      <button class="copycmd" data-cmd="${esc(cmd)}">복사</button></div>
+  </div>`).join("");
+
+/* 난이도별로 묶어서 보여주고, 필터로 한 수준만 볼 수 있게 한다 */
+let tierFilter = 0;   // 0 = 전체
+function renderFixList(){
+  $("fixList").innerHTML = [1,2,3]
+    .filter(n => !tierFilter || n === tierFilter)
+    .map(n => {
+      const ids = Object.keys(FIXES).filter(k => FIX_TIER[k] === n);
+      if (!ids.length) return "";
+      return `
+        <div class="tierhead t${n}">
+          ${badge(n)}
+          <div class="tx"><b>${esc(TIERS[n].lead)}</b><span>${esc(TIERS[n].desc)}</span></div>
+        </div>
+        ${ids.map(k => {
+          const f = FIXES[k];
+          return `<div class="fix t${n}">
+            <h3>${esc(f.title)}</h3>
+            <p class="when">${esc(f.when)}</p>${fixBody(f)}</div>`;
+        }).join("")}`;
+    }).join("");
+}
+
+$("tierFilter").innerHTML = [[0,"전체 보기"],[1,"초급만"],[2,"중급만"],[3,"고급만"]]
+  .map(([n,t]) => `<button data-tier="${n}"${n===0?' class="on"':""}>${t}</button>`).join("");
+$("tierFilter").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  tierFilter = +b.dataset.tier;
+  [...$("tierFilter").children].forEach(x => x.classList.toggle("on", x === b));
+  renderFixList();
+});
+renderFixList();
+
+$("cleanText").value = CLEAN_SCRIPT;
+$("showClean").onclick = () => $("cleanBox").classList.toggle("hidden");
+$("copyClean").onclick = async () => {
+  try{ await navigator.clipboard.writeText(CLEAN_SCRIPT); }
+  catch(e){ $("cleanBox").classList.remove("hidden"); $("cleanText").select(); }
+  $("cleanMsg").textContent = "복사했습니다 — 정리.ps1 로 저장하세요";
+  setTimeout(() => $("cleanMsg").textContent = "", 3500);
+};
+
+$("scriptText").value = SCRIPT;
+$("copyScript").onclick = async () => {
+  try{ await navigator.clipboard.writeText(SCRIPT); }
+  catch(e){ $("scriptBox").classList.remove("hidden"); $("scriptText").select(); }
+  $("copyMsg").textContent = "복사했습니다";
+  setTimeout(() => $("copyMsg").textContent = "", 2500);
+};
+$("showScript").onclick = () => $("scriptBox").classList.toggle("hidden");
+
+$("analyze").onclick = () => {
+  $("err").textContent = "";
+  const raw = $("input").value.trim();
+  if (!raw){ $("err").textContent = "결과를 붙여넣어 주세요."; return; }
+  let d; try{ d = JSON.parse(raw); }
+  catch(e){ $("err").textContent = "형식이 맞지 않습니다. 스크립트를 다시 실행해 주세요."; return; }
+  if (typeof d.memUsedPct !== "number"){ $("err").textContent = "점검 결과가 아닙니다."; return; }
+  render(d);
+  const worst = (d.disks||[{freePct:100}]).reduce((a,b) => b.freePct < a.freePct ? b : a);
+  const h = store.get(K_HIST, []);
+  h.push({ date:d.date, memUsedPct:d.memUsedPct, diskFreePct:worst.freePct,
+           topName:(d.top||[{name:"-"}])[0].name, topPerMin:(d.top||[{cpuPerMin:0}])[0].cpuPerMin, raw:d });
+  store.set(K_HIST, h.slice(-24)); renderHistory();
+};
+
+const SAMPLE = {
+  date:"2026-11-12 19:50", uptimeMin:180, memUsedPct:44, memFreeGB:17.7, memTotalGB:31.7, procCount:400,
+  disks:[{id:"C:",freeGB:40,freePct:17},{id:"F:",freeGB:25.3,freePct:23}],
+  top:[{name:"explorer",cpu:511,cpuPerMin:2.84,memMB:411},{name:"FxSound",cpu:324,cpuPerMin:1.8,memMB:29},
+       {name:"chrome",cpu:311,cpuPerMin:1.73,memMB:220},{name:"dptf_helper",cpu:303,cpuPerMin:1.69,memMB:8},
+       {name:"desktopcal",cpu:121,cpuPerMin:0.67,memMB:43}],
+  deadLinks:[], startupOn:15, startupOff:6
+};
+$("demo").onclick = () => { $("input").value = JSON.stringify(SAMPLE); $("analyze").click(); };
+
+/* 내보내기 — 아티팩트 뷰어는 일반 다운로드 링크를 막는다.
+   downloads 기능으로 저장하고, 못 쓰는 환경에서는 복사 방식으로 넘어간다. */
+/* 기능이 준비되기 전에 눌러도 되도록 약속(promise)을 보관해 둔다 */
+const downloadsReady = (window.claude && claude.use)
+  ? claude.use("downloads").catch(() => null)
+  : Promise.resolve(null);
+
+$("export").onclick = async () => {
+  const h = store.get(K_HIST, []);
+  if (!h.length){ alert("내보낼 기록이 없습니다."); return; }
+  const data = JSON.stringify(h, null, 2);
+  const filename = `PC점검_${new Date().toISOString().slice(0,10)}.json`;
+
+  /* ① 아티팩트 환경: 일반 다운로드가 막혀 있어 downloads 기능을 써야 한다 */
+  const dl = await downloadsReady;
+  if (dl){
+    try{ await dl.save({ filename, data }); }catch(e){ /* 사용자가 취소 */ }
+    return;
+  }
+  /* ② 깃허브 페이지 등 일반 웹: 평범한 다운로드 링크가 정상 작동한다 */
+  try{
+    const url = URL.createObjectURL(new Blob([data], { type:"application/json" }));
+    const a = Object.assign(document.createElement("a"), { href:url, download:filename });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return;
+  }catch(e){ /* ③ 둘 다 안 되면 화면에 띄워 직접 복사하게 한다 */ }
+  $("input").value = data; $("input").select();
+  alert("이 환경에서는 파일 저장을 쓸 수 없습니다.\n점검하기 탭의 입력칸에 기록을 넣었으니 복사해서 보관하세요.");
+};
+$("clear").onclick = () => {
+  if (!confirm("점검 기록을 모두 지울까요?")) return;
+  store.del(K_HIST); renderHistory();
+};
+
+/* ═══════════════════════════════════════════════════════════
+   탭 2 — 관리 루틴 체크리스트
+   주기가 바뀌면 저장 키가 달라져 자동으로 비워진다.
+   ═══════════════════════════════════════════════════════════ */
+const TASKS = {
+  weekly: { name:"매주", time:"3분", items:[
+    ["재부팅 1회", "절전모드로 덮지 말고 시작 → 전원 → 다시 시작을 고르세요", 1],
+    ["다운로드 폴더 비우기", "필요한 파일은 업무 폴더로 옮기고 나머지는 삭제", 1],
+    ["휴지통 비우기", "비우기 전까지는 디스크 공간을 그대로 차지합니다", 1]
+  ]},
+  monthly: { name:"매월", time:"15분", items:[
+    ["자가점검 스크립트 실행", "점검하기 탭에서 결과를 붙여넣어 판정을 받으세요", 1],
+    ["Windows 업데이트", "미루면 나중에 한꺼번에 설치되며 며칠간 느려집니다", 1],
+    ["시작앱 재점검", "설정 → 앱 → 시작 프로그램에서 모르는 항목이 늘었는지 확인", 2],
+    ["브라우저 캐시 정리", "캐시된 이미지 및 파일만 체크. 비밀번호·쿠키는 건드리지 마세요", 2]
+  ]},
+  quarterly: { name:"분기", time:"30분", items:[
+    ["저장소 센서 확인", "설정 → 시스템 → 저장소에서 무엇이 공간을 쓰는지 확인", 1],
+    ["안 쓰는 프로그램 제거", "설정 → 앱 → 설치된 앱에서 크기순 정렬 후 정리", 3],
+    ["죽은 시작 항목 점검", "점검 결과에서 자동으로 찾아줍니다", 3],
+    ["디스크 오류 검사", "관리자 PowerShell에서 chkdsk C: /scan — 재부팅 없이 검사만 합니다", 3]
+  ]}
+};
+
+/* 주기 키: 주기가 넘어가면 키가 바뀌므로 체크가 저절로 풀린다 */
+function periodKey(kind, now = new Date()){
+  const y = now.getFullYear();
+  if (kind === "monthly")   return `${y}-${String(now.getMonth()+1).padStart(2,"0")}`;
+  if (kind === "quarterly") return `${y}-Q${Math.floor(now.getMonth()/3)+1}`;
+  const d = new Date(now);                       // 주간: 그 주 월요일 날짜를 키로 쓴다
+  d.setDate(d.getDate() - ((d.getDay()+6) % 7));
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+const isDone = (kind,i) => !!(store.get(K_CHECK,{})[`${kind}:${periodKey(kind)}`]||{})[i];
+function toggle(kind, i, on){
+  const all = store.get(K_CHECK, {});
+  const key = `${kind}:${periodKey(kind)}`;
+  all[key] = all[key] || {};
+  if (on) all[key][i] = true; else delete all[key][i];
+  /* 지난 주기 기록은 쌓이지 않게 현재 키만 남긴다 */
+  const live = Object.keys(TASKS).map(k => `${k}:${periodKey(k)}`);
+  Object.keys(all).forEach(k => { if (!live.includes(k)) delete all[k]; });
+  store.set(K_CHECK, all);
+}
+
+function renderChecklist(){
+  $("checklist").innerHTML = Object.entries(TASKS).map(([kind,g]) => {
+    const done = g.items.filter((_,i) => isDone(kind,i)).length;
+    return `<div class="grp">
+      <h3>${g.name} <small>${done}/${g.items.length} 완료 · 약 ${g.time}</small></h3>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:9px">${periodKey(kind)} 기준</div>
+      ${g.items.map(([t,d,n],i) => {
+        const on = isDone(kind,i);
+        return `<label class="chk ${on?"done":""}">
+          <input type="checkbox" data-kind="${kind}" data-i="${i}" ${on?"checked":""}>
+          <span><span class="t">${esc(t)} ${badge(n)}</span><span class="d">${esc(d)}</span></span></label>`;
+      }).join("")}
+    </div>`;
+  }).join("");
+
+  const total = Object.values(TASKS).reduce((n,g) => n+g.items.length, 0);
+  const done  = Object.entries(TASKS).reduce((n,[k,g]) => n + g.items.filter((_,i)=>isDone(k,i)).length, 0);
+  const pct = Math.round(done/total*100);
+  $("progress").innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <b style="font-size:21px">${done} / ${total}</b>
+      <span style="color:var(--muted);font-size:13.5px">${pct}% 완료</span>
+    </div>
+    <div class="bar"><div style="width:${pct}%"></div></div>
+    <div style="font-size:13px;color:var(--muted)">${
+      pct===100 ? "이번 기간 할 일을 모두 마치셨습니다."
+                : "체크하지 않은 항목이 아래에 있습니다."}</div>`;
+}
+
+$("checklist").addEventListener("change", e => {
+  const c = e.target.closest("input[type=checkbox]"); if (!c) return;
+  toggle(c.dataset.kind, +c.dataset.i, c.checked);
+  renderChecklist();
+});
+
+/* ═══════════════════════════════════════════════════════════
+   탭 3 — 정보부 모드
+   서버 없이, 각자 내보낸 파일을 한곳에서 읽어 비교한다.
+   ═══════════════════════════════════════════════════════════ */
+let pool = [];   // [{name, rec}]
+
+function addResult(name, data){
+  /* 내보낸 파일은 기록 배열, 직접 붙여넣기는 단일 객체일 수 있다 */
+  const list = Array.isArray(data) ? data : [data];
+  const last = list[list.length-1];
+  const rec  = last && last.raw ? last.raw : last;
+  if (!rec || typeof rec.memUsedPct !== "number") throw new Error(name + " : 점검 결과 형식이 아닙니다");
+  pool = pool.filter(p => p.name !== name);
+  pool.push({ name, rec });
+}
+
+function renderAdmin(){
+  if (!pool.length){ $("adminResult").classList.add("hidden"); return; }
+
+  const rows = pool.map(p => {
+    const a = analyze(p.rec);
+    return { name:p.name, rec:p.rec, a };
+  }).sort((x,y) => LEVELS.indexOf(y.a.overall) - LEVELS.indexOf(x.a.overall));
+
+  const count = { ok:0, warn:0, bad:0 };
+  rows.forEach(r => count[r.a.overall]++);
+
+  $("adminStats").innerHTML = [
+    ["점검한 PC", rows.length+"대", "모아둔 결과", ""],
+    ["정상", count.ok+"대", "손댈 것 없음", count.ok?"ok":""],
+    ["주의", count.warn+"대", "지켜볼 것", count.warn?"warn":""],
+    ["조치 필요", count.bad+"대", "우선 지원 대상", count.bad?"bad":""]
+  ].map(([l,v,n,g]) =>
+    `<div class="stat ${g}"><div class="label">${l}</div>
+     <div class="value">${v}</div><div class="note">${n}</div></div>`).join("");
+
+  $("adminRows").innerHTML = rows.map(r => `
+    <tr><td><b>${esc(r.name)}</b></td><td>${esc(r.rec.date)}</td>
+      <td class="n">${r.rec.memUsedPct}%</td>
+      <td class="n">${r.a.worstDisk.id} ${r.a.worstDisk.freePct}%</td>
+      <td>${esc(r.a.topProc.name)} <span style="color:var(--muted)">${r.a.topProc.cpuPerMin}초/분</span></td>
+      <td><span class="pill ${r.a.overall}">${LABEL[r.a.overall]}</span></td></tr>`).join("");
+
+  /* 공통 문제 찾기 — 여러 PC에 반복해 나타나는 무거운 프로그램 */
+  const tally = {};
+  pool.forEach(p => (p.rec.top||[]).forEach(t => {
+    if (t.cpuPerMin >= RULES.cpu.warn){
+      tally[t.name] = tally[t.name] || { n:0, sum:0 };
+      tally[t.name].n++; tally[t.name].sum += t.cpuPerMin;
+    }
+  }));
+  const common = Object.entries(tally)
+    .filter(([,v]) => v.n >= Math.max(2, Math.ceil(pool.length*0.4)))
+    .sort((a,b) => b[1].n - a[1].n).slice(0,5);
+
+  $("commonBox").innerHTML = common.length ? `
+    <div class="warnbox" style="margin-top:18px">
+      <b>여러 PC에서 공통으로 나타난 프로그램</b><br>
+      <span style="font-size:12.5px">한 대만의 문제가 아니라면 학교 차원에서 한 번에 정리하는 편이 빠릅니다.</span>
+      <table style="margin-top:9px">
+        <thead><tr><th>프로그램</th><th class="n">나타난 PC</th><th class="n">평균 분당초</th></tr></thead>
+        <tbody>${common.map(([n,v]) =>
+          `<tr><td>${esc(n)}</td><td class="n">${v.n} / ${pool.length}대</td>
+           <td class="n">${(v.sum/v.n).toFixed(2)}</td></tr>`).join("")}</tbody>
+      </table>
+    </div>` : `
+    <div class="infobox" style="margin-top:18px">
+      여러 PC에 공통으로 걸리는 무거운 프로그램은 없습니다. 개별 대응으로 충분합니다.
+    </div>`;
+
+  $("adminResult").classList.remove("hidden");
+}
+
+function readFiles(fileList){
+  $("adminErr").textContent = "";
+  [...fileList].forEach(f => {
+    const r = new FileReader();
+    r.onload = () => {
+      try{
+        addResult(f.name.replace(/\.json$/i,""), JSON.parse(r.result));
+        renderAdmin();
+      }catch(e){ $("adminErr").textContent = e.message || (f.name + " 를 읽지 못했습니다"); }
+    };
+    r.onerror = () => $("adminErr").textContent = f.name + " 를 읽지 못했습니다";
+    r.readAsText(f);
+  });
+}
+
+$("drop").onclick = () => $("files").click();
+$("files").onchange = e => { readFiles(e.target.files); e.target.value = ""; };
+["dragenter","dragover"].forEach(ev => $("drop").addEventListener(ev, e => {
+  e.preventDefault(); $("drop").classList.add("over");
+}));
+["dragleave","drop"].forEach(ev => $("drop").addEventListener(ev, e => {
+  e.preventDefault(); $("drop").classList.remove("over");
+}));
+$("drop").addEventListener("drop", e => { if (e.dataTransfer?.files?.length) readFiles(e.dataTransfer.files); });
+
+$("pAdd").onclick = () => {
+  $("adminErr").textContent = "";
+  const name = $("pName").value.trim();
+  if (!name){ $("adminErr").textContent = "선생님 이름을 입력하세요."; return; }
+  try{
+    addResult(name, JSON.parse($("pJson").value.trim()));
+    $("pName").value = ""; $("pJson").value = ""; renderAdmin();
+  }catch(e){ $("adminErr").textContent = "결과 형식이 맞지 않습니다."; }
+};
+
+$("adminDemo").onclick = () => {
+  const mk = (mem, diskPct, top) => ({
+    ...SAMPLE, memUsedPct:mem, disks:[{id:"C:",freeGB:Math.round(237*diskPct/100),freePct:diskPct}], top
+  });
+  pool = [
+    { name:"김○○ 선생님", rec: mk(44,17,[{name:"explorer",cpu:511,cpuPerMin:2.84,memMB:411},{name:"FxSound",cpu:324,cpuPerMin:1.8,memMB:29}]) },
+    { name:"이○○ 선생님", rec: mk(88,8, [{name:"Creative Cloud UI Helper",cpu:900,cpuPerMin:15.3,memMB:401},{name:"FxSound",cpu:300,cpuPerMin:1.7,memMB:30}]) },
+    { name:"박○○ 선생님", rec: mk(61,34,[{name:"chrome",cpu:200,cpuPerMin:1.2,memMB:300},{name:"FxSound",cpu:280,cpuPerMin:1.5,memMB:28}]) },
+    { name:"최○○ 선생님", rec: mk(38,52,[{name:"explorer",cpu:90,cpuPerMin:0.5,memMB:220}]) }
+  ];
+  renderAdmin();
+  $("adminResult").scrollIntoView({ behavior:"smooth", block:"start" });
+};
+$("adminClear").onclick = () => { pool = []; $("adminResult").classList.add("hidden"); };
+
+/* ═══════════════════════════════════════════════════════════
+   탭 4 — 배포 안내
+   ═══════════════════════════════════════════════════════════ */
+const NOTICE =
+`선생님들께 — PC 자가점검 안내
+
+컴퓨터가 느려졌을 때 무엇이 원인인지 스스로 확인할 수 있는
+점검 도구를 마련했습니다. 한 달에 한 번, 10분이면 됩니다.
+
+■ 이렇게 하시면 됩니다
+  1. 아래 주소를 엽니다
+     [여기에 링크]
+  2. '스크립트 복사' 를 누르고, 메모장에 붙여넣어
+     바탕화면에 PC점검.ps1 로 저장합니다
+     (파일 형식: 모든 파일 / 인코딩: UTF-8(BOM))
+  3. 저장한 파일을 우클릭 → PowerShell로 실행
+  4. 끝나면 결과가 자동 복사됩니다
+  5. 다시 웹페이지로 가서 Ctrl+V 로 붙여넣고 '분석하기'
+
+■ 결과는 신호등으로 나옵니다
+  초록 = 정상 / 노랑 = 지켜볼 것 / 빨강 = 조치 필요
+  '지금 할 일' 에 적힌 대로만 따라 하시면 됩니다.
+
+■ 조치 방법은 난이도가 표시됩니다
+  [초급] 실수해도 되돌릴 일이 없습니다. 편하게 하세요
+  [중급] 되돌릴 수 있지만 무엇을 끄는지 보고 하세요
+  [고급] 삭제가 포함됩니다. 부담되시면 하지 마세요
+
+  초급 항목만 하셔도 대부분 좋아집니다.
+  중급·고급은 안 하셔도 됩니다. 부담 갖지 마세요.
+
+■ 안심하셔도 됩니다
+  · 점검 스크립트는 읽기만 하고 설정을 바꾸지 않습니다
+  · 측정값은 선생님 PC의 브라우저에만 저장되며
+    외부로 전송되지 않습니다
+  · 관리자 권한이 필요 없습니다
+
+■ 주의
+  나이스·업무포털용 보안 프로그램(안랩, 베라포트, 크로스EX 등)은
+  절대 끄거나 지우지 마세요. 웹페이지의 '관리 루틴' 탭에
+  목록이 정리되어 있습니다.
+
+■ 도움이 필요하시면
+  · 결과 화면을 캡처해서 보내주세요
+  · 로그인 불가, 블루스크린 등은 정보부로 바로 연락 주세요
+
+점검 결과를 모아 학교 전체 상황을 보려고 합니다.
+웹페이지의 '결과 파일로 내보내기' 를 누르신 뒤
+파일명을 성함으로 바꿔 보내주시면 감사하겠습니다.`;
+
+$("noticeText").textContent = NOTICE;
+$("copyNotice").onclick = async () => {
+  try{ await navigator.clipboard.writeText(NOTICE); $("noticeMsg").textContent = "복사했습니다"; }
+  catch(e){
+    const r = document.createRange(); r.selectNode($("noticeText"));
+    getSelection().removeAllRanges(); getSelection().addRange(r);
+    $("noticeMsg").textContent = "선택했습니다. Ctrl+C 를 누르세요";
+  }
+  setTimeout(() => $("noticeMsg").textContent = "", 3000);
+};
+
+$("deployWays").innerHTML = [
+  ["① 링크만 공유", "가장 빠름 · 참여율 낮음",
+   "업무 메신저로 이 페이지 주소와 안내문을 보냅니다. 관심 있는 분만 합니다. 처음 시작할 때 적당합니다."],
+  ["② 부서별 담당자 지정", "중간 · 참여율 보통",
+   "부서마다 한 분이 먼저 해보고 부서원을 돕습니다. 정보부 혼자 감당하지 않아도 되고, 질문이 분산됩니다."],
+  ["③ 전달연수 10분", "손이 감 · 참여율 높음",
+   "직원회의 끝에 화면을 띄워 한 번 시연합니다. 스크립트 저장의 '모든 파일' 과 'UTF-8(BOM)' 두 군데에서 대부분 막히므로, 그 장면만 보여줘도 문의가 크게 줄어듭니다."]
+].map(([t,s,d]) => `
+  <div style="padding:13px 15px;border:1px solid var(--line);border-radius:11px;margin-bottom:9px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <b>${t}</b><span style="color:var(--muted);font-size:12.5px">${s}</span>
+    </div>
+    <div style="font-size:13.5px;color:var(--muted);margin-top:3px">${d}</div>
+  </div>`).join("");
+
+$("deployCheck").innerHTML = `
+  <table>
+    <thead><tr><th>확인할 것</th><th>왜</th></tr></thead>
+    <tbody>
+      <tr><td><b>페이지 공유 설정</b></td><td>공유하지 않으면 선생님들이 링크를 열어도 보이지 않습니다. 가장 흔한 실수입니다</td></tr>
+      <tr><td><b>본인이 먼저 끝까지 해보기</b></td><td>저장·실행 과정에서 막히는 지점을 미리 알아야 안내할 수 있습니다</td></tr>
+      <tr><td><b>보안 프로그램 목록 확인</b></td><td>학교마다 설치된 것이 다릅니다. 관리 루틴 탭의 목록에 우리 학교 것을 추가하세요</td></tr>
+      <tr><td><b>판정 기준 조정</b></td><td>사양이 낮은 PC가 많으면 메모리 기준 70/85%가 너무 빡빡할 수 있습니다</td></tr>
+      <tr><td><b>결과 회수 방법 정하기</b></td><td>메신저 파일 전송인지 공유폴더인지 미리 정해두면 혼선이 없습니다</td></tr>
+    </tbody>
+  </table>
+  <div class="warnbox">
+    <b>개인정보 관점</b><br> 점검 결과에는 프로그램 이름과 사용량만 담기고, 파일 이름이나 문서 내용은 들어가지 않습니다.
+    다만 <b>설치된 프로그램 목록은 개인 사용 습관을 드러낼 수 있으므로</b>, 회수는 강제하지 말고
+    희망하는 분만 보내도록 안내하시는 편이 좋습니다.
+  </div>`;
+
+$("designNote").innerHTML = `
+  <p style="margin-top:0"><b>부딪힌 벽</b><br> 브라우저는 보안 샌드박스 안에 있어 메모리·CPU·시작프로그램을 읽을 수 없습니다.
+  "버튼 하나로 내 PC 진단"은 웹앱으로는 원리적으로 불가능합니다.</p>
+  <p><b>우회 설계</b><br> 측정은 OS에 직접 물을 수 있는 PowerShell에 맡기고, 웹앱은 판정과 기록만 맡았습니다.
+  둘을 잇는 것은 클립보드입니다. <b>센서와 계기판을 분리</b>한 구조입니다.</p>
+  <p><b>왜 JSON인가</b><br> 사람이 읽는 표를 출력하면 웹앱이 다시 파싱해야 하고 형식이 조금만 바뀌어도 깨집니다.
+  기계가 읽을 형식으로 넘기고, 보기 좋게 만드는 일은 받는 쪽이 전담합니다.</p>
+  <p><b>판정 기준의 분리</b><br> 임계값은 코드 곳곳이 아니라 <code>RULES</code> 객체 한 곳에 모았습니다.
+  학교마다 PC 사양이 달라 기준을 바꿔야 할 때 그 표만 고치면 됩니다.</p>
+  <p><b>체크리스트의 자동 초기화</b><br> "언제 초기화할까"를 타이머로 풀면 복잡해집니다.
+  대신 <b>저장 키에 기간을 넣었습니다</b>(<code>weekly:2026-11-10</code>). 주가 바뀌면 키가 바뀌어 저절로 빈 상태가 됩니다.
+  시간을 다루는 코드는 '지우는' 대신 '다른 서랍을 여는' 방식이 훨씬 안전합니다.</p>
+  <p><b>서버 없는 취합</b><br> 여러 PC 데이터를 모으려면 보통 DB와 서버가 필요하지만, 교육청 환경에서는 보안 검토 대상이 됩니다.
+  각자 파일로 내보내고 한 사람이 불러와 합치는 방식으로 <b>권한을 하나도 쓰지 않고</b> 같은 목적을 달성했습니다.
+  권한을 적게 쓸수록 배포가 쉽습니다.</p>
+  <p><b>조용한 실패를 막기</b><br> 처음 배포본은 내보내기 버튼이 아무 일도 하지 않았습니다.
+  아티팩트 환경이 일반 다운로드를 막는데 코드는 오류 없이 통과했기 때문입니다.
+  지금은 기능을 쓸 수 있는지 먼저 확인하고, 없으면 복사 방식으로 넘어갑니다.
+  <b>바이브 코딩에서 가장 위험한 건 에러가 아니라 조용한 실패입니다.</b></p>`;
+
+$("keepRows").innerHTML = KEEP
+  .map(([a,b]) => `<tr><td>${esc(a)}</td><td style="color:var(--muted)">${esc(b)}</td></tr>`).join("");
+
+$("symptomRows").innerHTML = [
+  ["갑자기 전반적으로 느려짐","백그라운드 프로그램 폭주","재부팅 → 점검 스크립트 실행"],
+  ["부팅이 유독 오래 걸림","시작앱 과다, 죽은 바로가기","시작앱 점검"],
+  ["폴더 여는 데 몇 초 걸림","보안 모듈 검사 (정상)","폴더 나누기, 다른 드라이브 활용"],
+  ["저장할 때마다 멈춤","디스크 여유 부족","안 쓰는 프로그램 제거"],
+  ["팬 소리가 계속 큼","CPU 점유 또는 발열","점검 결과에서 CPU 상위 확인"],
+  ["스크립트 오류창 반복","삭제된 경로를 호출","해당 프로그램 재설치 또는 제거"],
+  ["인터넷만 느림","네트워크 문제","PC가 아니라 공유기·회선 점검"]
+].map(([a,b,c]) => `<tr><td>${a}</td><td style="color:var(--muted)">${b}</td><td>${c}</td></tr>`).join("");
+
+renderHistory();
+renderChecklist();
+</script>
+</body>
+</html>
